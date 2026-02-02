@@ -1,0 +1,10 @@
+[package]
+name = "swipe-predictor-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.100"
+clap = { version = "4.5.56", features = ["derive"] }
+colored = "3.1.1"
+rayon = "1.11.0"
