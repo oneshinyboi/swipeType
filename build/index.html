@@ -24,7 +24,8 @@
             box-sizing: border-box;
             font-family: inherit;
         }
-        #status { margin-top: 8px; font-size: 0.9em; }
+        #status { margin-top: 8px; font-size: 0.9em; display: flex; justify-content: space-between; }
+        #status .typing-stats { text-align: right; }
         #results { margin-top: 8px; height: 150px; margin-bottom: 16px; }
         #keyboard-container {
             position: relative;
@@ -359,7 +360,7 @@
             status.textContent = 'Initializing...';
             init_dictionary(freqText);
 
-            status.textContent = 'Ready';
+            status.innerHTML = '<span>Ready</span><span class="typing-stats"></span>';
             input.disabled = false;
             input.focus();
 
@@ -389,14 +390,27 @@
                 const swipe = input.value.trim().toLowerCase();
                 if (!swipe) {
                     results.innerHTML = '';
-                    status.textContent = 'Ready';
+                    status.innerHTML = '<span>Ready</span><span class="typing-stats"></span>';
                     return;
                 }
                 const start = performance.now();
                 const json = predict_wasm(swipe, 5);
                 const elapsed = ((performance.now() - start) / 1000).toFixed(3);
-                status.textContent = `Computed in ${elapsed}s`;
+
                 const predictions = JSON.parse(json);
+
+                let typingStats = '';
+                if (charTimestamps.length >= 2) {
+                    const typingTimeMs = charTimestamps[charTimestamps.length - 1] - charTimestamps[0];
+                    const typingTimeSec = (typingTimeMs / 1000).toFixed(2);
+                    const minutes = typingTimeMs / 60000;
+                    const physicalWpm = minutes > 0 ? Math.round((swipe.length / 5) / minutes) : 0;
+                    const firstWord = predictions.length > 0 ? predictions[0].word : '';
+                    const actualWpm = minutes > 0 && firstWord ? Math.round((firstWord.length / 5) / minutes) : 0;
+                    typingStats = `typed in ${typingTimeSec}s · ${physicalWpm} Physical · ${actualWpm} Actual WPM`;
+                }
+
+                status.innerHTML = `<span>Computed in ${elapsed}s</span><span class="typing-stats">${typingStats}</span>`;
                 results.innerHTML = `<div class="prediction" style="font-weight:bold;opacity:0.6">
                         <span class="word">Word</span>
                         <span class="score">Score</span>
@@ -433,7 +447,7 @@
                     charTimestamps = [];
                     lastInputLength = 0;
                     results.innerHTML = '';
-                    status.textContent = 'Ready';
+                    status.innerHTML = '<span>Ready</span><span class="typing-stats"></span>';
                     return;
                 }
 
@@ -443,7 +457,7 @@
                 }, swipe.length < DEBOUNCE_THRESHOLD ? 100 : DEBOUNCE_DELAY);
 
                 if (swipe.length >= DEBOUNCE_THRESHOLD) {
-                    status.textContent = 'Typing...';
+                    status.innerHTML = '<span>Typing...</span><span class="typing-stats"></span>';
                 }
             });
         }
