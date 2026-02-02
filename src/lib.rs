@@ -77,8 +77,6 @@ pub fn simplify_path(path: &[Point]) -> Vec<Point> {
     new_path
 }
 
-/// Fast DTW with Sakoe-Chiba band constraint and early termination.
-/// Uses O(n) space instead of O(n*m).
 pub fn dtw_distance_fast(s: &[Point], t: &[Point], window: usize, cutoff: f64) -> f64 {
     let n = s.len();
     let m = t.len();
@@ -86,13 +84,11 @@ pub fn dtw_distance_fast(s: &[Point], t: &[Point], window: usize, cutoff: f64) -
         return f64::INFINITY;
     }
 
-    // Early reject if lengths are too different
     let len_diff = (n as i64 - m as i64).unsigned_abs() as usize;
     if len_diff > window {
         return f64::INFINITY;
     }
 
-    // Use two rows for O(m) space
     let mut prev = vec![f64::INFINITY; m + 1];
     let mut curr = vec![f64::INFINITY; m + 1];
     prev[0] = 0.0;
@@ -102,7 +98,6 @@ pub fn dtw_distance_fast(s: &[Point], t: &[Point], window: usize, cutoff: f64) -
         let j_start = if i > window { i - window } else { 1 };
         let j_end = (i + window).min(m);
 
-        // Reset out-of-band cells
         if j_start > 1 {
             curr[j_start - 1] = f64::INFINITY;
         }
@@ -115,7 +110,6 @@ pub fn dtw_distance_fast(s: &[Point], t: &[Point], window: usize, cutoff: f64) -
             row_min = row_min.min(curr[j]);
         }
 
-        // Early termination: if entire row exceeds cutoff, no point continuing
         if row_min > cutoff {
             return f64::INFINITY;
         }
@@ -126,7 +120,7 @@ pub fn dtw_distance_fast(s: &[Point], t: &[Point], window: usize, cutoff: f64) -
     prev[m]
 }
 
-/// Unused
+#[allow(dead_code)]
 pub fn dtw_distance(s: &[Point], t: &[Point]) -> f64 {
     let n = s.len();
     let m = t.len();
@@ -148,11 +142,6 @@ pub fn dtw_distance(s: &[Point], t: &[Point]) -> f64 {
     dtw[n][m]
 }
 
-// ============== WASM Exports ==============
-
-const WORDS_TEXT: &str = include_str!("../words.txt");
-const FREQ_TEXT: &str = include_str!("../word_freq.txt");
-
 #[derive(Serialize)]
 struct Prediction {
     word: String,
@@ -169,51 +158,51 @@ thread_local! {
     static DICTIONARY: RefCell<Option<Dictionary>> = RefCell::new(None);
 }
 
-fn ensure_dictionary() {
+#[wasm_bindgen]
+pub fn init_dictionary(freq_text: &str) {
+    let mut words = Vec::new();
+    let mut freq_map = HashMap::new();
+    let mut max_freq: f64 = 0.0;
+
+    let lines: Vec<&str> = freq_text.lines().collect();
+
+    for line in &lines {
+        if let Some((_, count_str)) = line.split_once('\t') {
+            if let Ok(count) = count_str.parse::<f64>() {
+                max_freq = max_freq.max(count);
+            }
+        }
+    }
+
+    for line in &lines {
+        if let Some((word, count_str)) = line.split_once('\t') {
+            let word = word.trim().to_lowercase();
+            if word.is_empty() {
+                continue;
+            }
+            words.push(word.clone());
+            if let Ok(count) = count_str.parse::<f64>() {
+                let log_freq = (count.ln() - 1.0) / max_freq.ln();
+                freq_map.insert(word, log_freq.max(0.0));
+            }
+        }
+    }
+
     DICTIONARY.with(|d| {
-        if d.borrow().is_some() {
-            return;
-        }
-
-        let words: Vec<String> = WORDS_TEXT
-            .lines()
-            .map(|l| l.trim().to_lowercase())
-            .filter(|l| !l.is_empty())
-            .collect();
-
-        let mut freq_map = HashMap::new();
-        let mut max_freq: f64 = 0.0;
-
-        let lines: Vec<&str> = FREQ_TEXT.lines().collect();
-        for line in &lines {
-            if let Some((_, count_str)) = line.split_once('\t') {
-                if let Ok(count) = count_str.parse::<f64>() {
-                    max_freq = max_freq.max(count);
-                }
-            }
-        }
-
-        for line in &lines {
-            if let Some((word, count_str)) = line.split_once('\t') {
-                if let Ok(count) = count_str.parse::<f64>() {
-                    let log_freq = (count.ln() - 1.0) / max_freq.ln();
-                    freq_map.insert(word.to_lowercase(), log_freq.max(0.0));
-                }
-            }
-        }
-
         *d.borrow_mut() = Some(Dictionary { words, freq: freq_map });
     });
 }
 
 #[wasm_bindgen]
 pub fn predict_wasm(swipe_input: &str, limit: usize) -> String {
-    ensure_dictionary();
     let margin = 0.1;
 
     DICTIONARY.with(|d| {
         let dict = d.borrow();
-        let dict = dict.as_ref().unwrap();
+        let dict = match dict.as_ref() {
+            Some(d) => d,
+            None => return "[]".to_string(),
+        };
 
         let layout = get_keyboard_layout();
         let raw_input_path = get_word_path(swipe_input, &layout);

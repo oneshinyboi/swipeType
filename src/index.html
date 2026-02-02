@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swipe Predictor</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            background: #eee;
+            width: 60vw;
+            margin: 15vh auto;
+        }
+        div { opacity: 0.8; }
+        h1 { font-size: 1.5em; }
+        input {
+            width: 100%;
+            padding: 8px;
+            font-size: 1em;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        #status { margin-top: 8px; font-size: 0.9em; }
+        #results { margin-top: 20px; }
+        #explanation { margin-top: 40px; }
+        #explanation h2 { font-size: 1.2em; }
+        .prediction {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+        }
+        a { color: #348; }
+    </style>
+</head>
+<body>
+    <h1>Swipe Predictor</h1>
+    <input type="text" id="swipe" placeholder="Type a swipe pattern..." disabled>
+    <div id="status">Loading...</div>
+    <div id="results"></div>
+
+    <div id="explanation">
+        <h2>How it works</h2>
+        <p>Swipe typing lets you draw a path across the keyboard instead of tapping individual keys. This predictor matches your input pattern against a dictionary of 333k words.</p>
+        <p>Each word is converted to a path on a QWERTY keyboard layout. The algorithm uses <a href="https://en.wikipedia.org/wiki/Dynamic_time_warping">Dynamic Time Warping (DTW)</a> to measure how similar your swipe path is to each word's path. Words with similar paths get low scores.</p>
+        <p>Word frequency from a corpus is used as a tiebreaker—common words rank higher when paths are equally close.</p>
+        <p>Try these swipe patterns:</p>
+        <ul>
+            <li><em>asdfghjkl;poiuygfdsascsa</em> → alpaca</li>
+            <li><em>poiuytrernmngyuijnb</em> → penguin</li>
+        </ul>
+    </div>
+
+    <script type="module">
+        import init, { init_dictionary, predict_wasm } from './swipe_predictor_rs.js';
+
+        const DICT_URL = "https://raw.githubusercontent.com/ZimengXiong/swipePredictor/refs/heads/master/word_freq.txt";
+
+        const input = document.getElementById('swipe');
+        const status = document.getElementById('status');
+        const results = document.getElementById('results');
+
+        async function main() {
+            status.textContent = 'Loading WASM...';
+            await init();
+
+            status.textContent = 'Fetching dictionary...';
+            const res = await fetch(DICT_URL);
+            const freqText = await res.text();
+
+            status.textContent = 'Initializing...';
+            init_dictionary(freqText);
+
+            status.textContent = 'Ready';
+            input.disabled = false;
+            input.focus();
+
+            input.addEventListener('input', () => {
+                const swipe = input.value.trim().toLowerCase();
+                if (!swipe) {
+                    results.innerHTML = '';
+                    return;
+                }
+                const json = predict_wasm(swipe, 5);
+                const predictions = JSON.parse(json);
+                results.innerHTML = predictions.map(p =>
+                    `<div class="prediction">
+                        <span class="word">${p.word}</span>
+                        <span class="score">${p.score.toFixed(3)}</span>
+                    </div>`
+                ).join('');
+            });
+        }
+
+        main().catch(err => {
+            status.textContent = 'Error: ' + err.message;
+            console.error(err);
+        });
+    </script>
+</body>
+</html>
