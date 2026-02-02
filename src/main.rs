@@ -161,11 +161,11 @@ fn predict(swipe_input: &str, words: &[String], freq: &HashMap<String, f64>, lim
         })
         .collect();
 
-    // Sort by combined score: DTW score * (1 - popularity * weight)
-    // This makes popularity influence scale proportionally with score differences
+    // Sort by combined score: score - freq * weight
+    // Lower score is better, higher freq is better, so subtract freq contribution
     candidates.sort_by(|a, b| {
-        let combined_a = a.1 * (1.0 - a.2 * pop_weight).max(0.1);
-        let combined_b = b.1 * (1.0 - b.2 * pop_weight).max(0.1);
+        let combined_a = a.1 - a.2 * pop_weight;
+        let combined_b = b.1 - b.2 * pop_weight;
         combined_a.partial_cmp(&combined_b).unwrap_or(std::cmp::Ordering::Equal)
     });
 

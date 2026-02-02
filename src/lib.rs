@@ -195,7 +195,7 @@ pub fn init_dictionary(freq_text: &str) {
 
 #[wasm_bindgen]
 pub fn predict_wasm(swipe_input: &str, limit: usize) -> String {
-    let pop_weight = 1.0;
+    let pop_weight = 0.25;
 
     DICTIONARY.with(|d| {
         let dict = d.borrow();
@@ -258,8 +258,10 @@ pub fn predict_wasm(swipe_input: &str, limit: usize) -> String {
             .collect();
 
         candidates.sort_by(|a, b| {
-            let combined_a = a.1 * (1.0 - a.2 * pop_weight).max(0.1);
-            let combined_b = b.1 * (1.0 - b.2 * pop_weight).max(0.1);
+            // Subtractive formula: score - freq * weight
+            // Lower score is better, higher freq is better, so we subtract freq contribution
+            let combined_a = a.1 - a.2 * pop_weight;
+            let combined_b = b.1 - b.2 * pop_weight;
             combined_a.partial_cmp(&combined_b).unwrap_or(std::cmp::Ordering::Equal)
         });
 

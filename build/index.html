@@ -227,9 +227,7 @@
                 predictionId++;
             }
             function renderPredictions(predictions, showBadges = false) {
-                results.innerHTML = `<div class="prediction" style="font-weight:bold;opacity:0.6">
-                    <span class="word">Word</span><span class="score">Score</span><span class="popularity">Popularity</span>
-                </div>` + predictions.map((p, i) => `<div class="prediction"><span class="word">${showBadges ? `[${i + 1}] ` : ''}${p.word}</span><span class="score">${p.score.toFixed(3)}</span><span class="popularity">${p.freq.toFixed(3)}</span></div>`).join('');
+                results.innerHTML = `<div class="prediction" style="font-weight:bold;opacity:0.6"><span class="word">Word</span><span class="score">Score</span><span class="popularity">Popularity</span></div>` + predictions.map((p, i) => `<div class="prediction"><span class="word">${showBadges ? `[${i + 1}] ` : ''}${p.word}</span><span class="score">${p.score.toFixed(3)}</span><span class="popularity">${p.freq.toFixed(3)}</span></div>`).join('');
             }
             function updateSentenceDisplay() {
                 sentenceDisplay.innerHTML = (sentenceWords.length > 0 ? sentenceWords.join(' ') + ' ' : '') + '<span class="cursor"></span>';
