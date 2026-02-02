@@ -7,12 +7,13 @@ Each word is converted to a path on a QWERTY keyboard layout. The algorithm uses
 Word frequency from a corpus is used as a tiebreaker—common words rank higher when paths are equally close.
 
 Try these swipe patterns:
+
 - `asdfghjkl;poiuygfdsascsa` → alpaca
 - `poiuytrernmngyuijnb` → penguin
 
 ## Optimizations
 
-To run DTW—an O(n×m) algorithm—against a word list in milliseconds, entirely client-side, we needed some key optimizations. The engine is written in Rust and compiled to WebAssembly:
+To run DTW (an O(n×m) algorithm) against 333k words in milliseconds entirely client-side, we needed some optimizations. The engine is written in Rust and compiled to WebAssembly:
 
 - **Sakoe-Chiba band** — constrain DTW to a diagonal band, reducing complexity to O(n×w)
 - **Early termination** — prune candidates mid-computation if partial score exceeds current best

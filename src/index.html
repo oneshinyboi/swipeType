@@ -55,7 +55,7 @@
         </ul>
 
         <h2>Optimizations</h2>
-        <p>To run DTW—an O(n×m) algorithm—against a word list in milliseconds, entirely client-side, we needed some key optimizations. The engine is written in Rust and compiled to WebAssembly:</p>
+        <p>To run DTW (an O(n×m) algorithm) against 333k words in milliseconds entirely client-side, we needed some key optimizations. The engine is written in Rust and compiled to WebAssembly:</p>
         <ul>
             <li><strong>Sakoe-Chiba band</strong> — constrain DTW to a diagonal band, reducing complexity to O(n×w)</li>
             <li><strong>Early termination</strong> — prune candidates mid-computation if partial score exceeds current best</li>
@@ -94,9 +94,13 @@
                 const swipe = input.value.trim().toLowerCase();
                 if (!swipe) {
                     results.innerHTML = '';
+                    status.textContent = 'Ready';
                     return;
                 }
+                const start = performance.now();
                 const json = predict_wasm(swipe, 5);
+                const elapsed = ((performance.now() - start) / 1000).toFixed(3);
+                status.textContent = `Computed in ${elapsed}s`;
                 const predictions = JSON.parse(json);
                 results.innerHTML = predictions.map(p =>
                     `<div class="prediction">
