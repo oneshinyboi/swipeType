@@ -1,6 +1,0 @@
-{
-  "name": "swipe-predictor",
-  "scripts": {
-    "build": "curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && make build-website"
-  }
-}
