@@ -6,14 +6,20 @@
     <title>Swipe Type</title>
     <style>
         html, body {
+            height: 100vh;
+            margin: 0;
             overflow: hidden;
-            height: 100%;
         }
         body {
             font-family: system-ui, sans-serif;
             background: #eee;
             width: 60vw;
-            margin: 15vh auto;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
         }
         div { opacity: 0.8; }
         h1 { font-size: 1.5em; }
@@ -26,9 +32,46 @@
             font-family: inherit;
         }
         #status { margin-top: 8px; font-size: 0.9em; }
-        #results { margin-top: 20px; height: 130px; }
-        #explanation { margin-top: 40px; }
-        #explanation h2 { font-size: 1.2em; }
+        #results { margin-top: 8px; height: 130px; }
+        #keyboard-container {
+            position: relative;
+            margin-top: 20px;
+            width: 100%;
+            aspect-ratio: 10 / 3;
+        }
+        #keyboard {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+        .key {
+            position: absolute;
+            width: 7%;
+            height: 30%;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            box-sizing: border-box;
+            transition: background-color 0.15s;
+        }
+        .key.active {
+            background: #a8d4ff;
+        }
+        #path-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        #explanation { margin-top: 16px; }
+        #explanation h2 { font-size: 1.1em; }
         .prediction {
             display: flex;
             justify-content: space-between;
@@ -38,13 +81,17 @@
     </style>
 </head>
 <body>
-    <h1>Swipe Predictor</h1>
+    <h1>Swipe Type</h1>
     <input type="text" id="swipe" placeholder="Type a swipe pattern..." disabled>
     <div id="status">Loading...</div>
     <div id="results"></div>
 
+    <div id="keyboard-container">
+        <div id="keyboard"></div>
+        <canvas id="path-canvas"></canvas>
+    </div>
+
     <div id="explanation">
-        <h2>How it works</h2>
         <p>Swipe typing lets you draw a path across the keyboard instead of tapping individual keys. This predictor matches your input pattern against a word list.</p>
         <p>Each word is converted to a path on a QWERTY keyboard layout. The algorithm uses <a href="https://en.wikipedia.org/wiki/Dynamic_time_warping">Dynamic Time Warping (DTW)</a> to measure how similar your swipe path is to each word's path. Words with similar paths get low scores.</p>
         <p>Word frequency from a corpus is used as a tiebreaker—common words rank higher when paths are equally close.</p>
@@ -55,7 +102,7 @@
         </ul>
 
         <h2>Optimizations</h2>
-        <p>To run DTW (an O(n×m) algorithm) against 333k words in milliseconds entirely client-side, we needed some key optimizations. The engine is written in Rust and compiled to WebAssembly:</p>
+        <p>To run DTW (an O(n×m) algorithm) against 333k words in milliseconds entirely client-side, we needed some optimizations. The engine is written in Rust and compiled to WebAssembly:</p>
         <ul>
             <li><strong>Sakoe-Chiba band</strong> — constrain DTW to a diagonal band, reducing complexity to O(n×w)</li>
             <li><strong>Early termination</strong> — prune candidates mid-computation if partial score exceeds current best</li>
@@ -74,6 +121,236 @@
         const input = document.getElementById('swipe');
         const status = document.getElementById('status');
         const results = document.getElementById('results');
+        const keyboard = document.getElementById('keyboard');
+        const canvas = document.getElementById('path-canvas');
+        const ctx = canvas.getContext('2d');
+
+        const KEYBOARD_LAYOUT = {
+            'q': [0, 0], 'w': [1, 0], 'e': [2, 0], 'r': [3, 0], 't': [4, 0],
+            'y': [5, 0], 'u': [6, 0], 'i': [7, 0], 'o': [8, 0], 'p': [9, 0],
+            '[': [10, 0], ']': [11, 0], '\\': [12, 0],
+            'a': [0.5, 1], 's': [1.5, 1], 'd': [2.5, 1], 'f': [3.5, 1], 'g': [4.5, 1],
+            'h': [5.5, 1], 'j': [6.5, 1], 'k': [7.5, 1], 'l': [8.5, 1],
+            ';': [9.5, 1], "'": [10.5, 1],
+            'z': [1, 2], 'x': [2, 2], 'c': [3, 2], 'v': [4, 2], 'b': [5, 2],
+            'n': [6, 2], 'm': [7, 2], ',': [8, 2], '.': [9, 2], '/': [10, 2]
+        };
+        const KEY_SCALE = 7.5;
+
+        const keyElements = {};
+
+        function renderKeyboard() {
+            keyboard.innerHTML = '';
+            for (const [char, [x, y]] of Object.entries(KEYBOARD_LAYOUT)) {
+                const key = document.createElement('div');
+                key.className = 'key';
+                key.textContent = char;
+                key.style.left = `${x * KEY_SCALE}%`;
+                key.style.top = `${y * 33.33}%`;
+                key.dataset.char = char;
+                keyboard.appendChild(key);
+                keyElements[char] = key;
+            }
+        }
+
+        let highlightTimeout = null;
+        function highlightKey(char) {
+            if (!char) return;
+            const key = keyElements[char.toLowerCase()];
+            if (!key) return;
+
+            document.querySelectorAll('.key.active').forEach(k => k.classList.remove('active'));
+            if (highlightTimeout) clearTimeout(highlightTimeout);
+
+            key.classList.add('active');
+            highlightTimeout = setTimeout(() => {
+                key.classList.remove('active');
+            }, 200);
+        }
+
+        function getSwipePath(swipe) {
+            const path = [];
+            for (const char of swipe.toLowerCase()) {
+                if (KEYBOARD_LAYOUT[char]) {
+                    path.push(KEYBOARD_LAYOUT[char]);
+                }
+            }
+            return path;
+        }
+
+        let animationId = null;
+        let currentPath = [];
+        let currentChars = [];
+        let keyTimestamps = [];
+        let trailPoints = [];
+        let lastHighlightedSegment = -1;
+        const TRAIL_LENGTH = 50;
+
+        function stopAnimation() {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            trailPoints = [];
+            lastHighlightedSegment = -1;
+            document.querySelectorAll('.key.active').forEach(k => k.classList.remove('active'));
+        }
+
+        function drawStaticPath(swipe, timestamps) {
+            stopAnimation();
+
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width * devicePixelRatio;
+            canvas.height = rect.height * devicePixelRatio;
+            ctx.scale(devicePixelRatio, devicePixelRatio);
+            ctx.clearRect(0, 0, rect.width, rect.height);
+
+            currentPath = getSwipePath(swipe);
+            if (currentPath.length < 1) return;
+
+            keyTimestamps = [];
+            currentChars = [];
+            for (let i = 0; i < swipe.length; i++) {
+                const char = swipe[i].toLowerCase();
+                if (KEYBOARD_LAYOUT[char]) {
+                    keyTimestamps.push(timestamps[i] || 0);
+                    currentChars.push(char);
+                }
+            }
+
+            const toPixel = ([x, y]) => [
+                (x * KEY_SCALE + 3.5) / 100 * rect.width,
+                (y * 33.33 + 15) / 100 * rect.height
+            ];
+
+            if (currentPath.length >= 2) {
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(50, 100, 200, 0.4)';
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                const [startX, startY] = toPixel(currentPath[0]);
+                ctx.moveTo(startX, startY);
+                for (let i = 1; i < currentPath.length; i++) {
+                    const [x, y] = toPixel(currentPath[i]);
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = 'rgba(50, 100, 200, 0.6)';
+            for (const point of currentPath) {
+                const [x, y] = toPixel(point);
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function startAnimation() {
+            if (currentPath.length < 2) return;
+
+            const rect = canvas.parentElement.getBoundingClientRect();
+            trailPoints = [];
+            lastHighlightedSegment = -1;
+            animateLoop(rect);
+        }
+
+        function animateLoop(rect) {
+            const path = currentPath;
+            const timestamps = keyTimestamps;
+            if (timestamps.length < 2) return;
+
+            const totalDuration = timestamps[timestamps.length - 1] - timestamps[0];
+            const startTime = performance.now();
+
+            const toPixel = ([x, y]) => [
+                (x * KEY_SCALE + 3.5) / 100 * rect.width,
+                (y * 33.33 + 15) / 100 * rect.height
+            ];
+
+            let prevElapsed = 0;
+
+            function draw() {
+                ctx.clearRect(0, 0, rect.width, rect.height);
+
+                const loopDuration = totalDuration + 500;
+                const elapsed = (performance.now() - startTime) % loopDuration;
+
+                if (elapsed < prevElapsed) {
+                    trailPoints = [];
+                    lastHighlightedSegment = -1;
+                }
+                prevElapsed = elapsed;
+
+                const currentTime = timestamps[0] + elapsed;
+
+                let segmentIdx = 0;
+                for (let i = 0; i < timestamps.length - 1; i++) {
+                    if (currentTime >= timestamps[i] && currentTime < timestamps[i + 1]) {
+                        segmentIdx = i;
+                        break;
+                    } else if (currentTime >= timestamps[timestamps.length - 1]) {
+                        segmentIdx = timestamps.length - 2;
+                    }
+                }
+
+                const segStart = timestamps[segmentIdx];
+                const segEnd = timestamps[segmentIdx + 1];
+                const segmentProgress = Math.min(1, (currentTime - segStart) / (segEnd - segStart));
+
+                const [x1, y1] = toPixel(path[segmentIdx]);
+                const [x2, y2] = toPixel(path[segmentIdx + 1]);
+                const currX = x1 + (x2 - x1) * segmentProgress;
+                const currY = y1 + (y2 - y1) * segmentProgress;
+
+                if (segmentIdx !== lastHighlightedSegment) {
+                    lastHighlightedSegment = segmentIdx;
+                    highlightKey(currentChars[segmentIdx]);
+                }
+
+                trailPoints.push([currX, currY]);
+                if (trailPoints.length > TRAIL_LENGTH) {
+                    trailPoints.shift();
+                }
+
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(50, 100, 200, 0.1)';
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                const [startX, startY] = toPixel(path[0]);
+                ctx.moveTo(startX, startY);
+                for (let i = 1; i < path.length; i++) {
+                    const [x, y] = toPixel(path[i]);
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                for (let i = 1; i < trailPoints.length; i++) {
+                    const opacity = (i / trailPoints.length) * 0.5;
+                    const width = (i / trailPoints.length) * 4 + 1;
+                    ctx.beginPath();
+                    ctx.strokeStyle = `rgba(50, 100, 200, ${opacity})`;
+                    ctx.lineWidth = width;
+                    ctx.lineCap = 'round';
+                    ctx.moveTo(trailPoints[i - 1][0], trailPoints[i - 1][1]);
+                    ctx.lineTo(trailPoints[i][0], trailPoints[i][1]);
+                    ctx.stroke();
+                }
+
+                ctx.beginPath();
+                ctx.fillStyle = 'rgba(50, 100, 200, 0.9)';
+                ctx.arc(currX, currY, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                animationId = requestAnimationFrame(draw);
+            }
+
+            draw();
+        }
+
+        renderKeyboard();
 
         async function main() {
             status.textContent = 'Loading WASM...';
@@ -96,6 +373,9 @@
             const DEBOUNCE_THRESHOLD = 15;
             const DEBOUNCE_DELAY = 300;
 
+            let charTimestamps = [];
+            let lastInputLength = 0;
+
             function cancelPending() {
                 if (pendingTimer) {
                     clearTimeout(pendingTimer);
@@ -109,7 +389,7 @@
             }
 
             function runPrediction(id) {
-                if (id !== predictionId) return; // stale
+                if (id !== predictionId) return;
                 const swipe = input.value.trim().toLowerCase();
                 if (!swipe) {
                     results.innerHTML = '';
@@ -131,25 +411,38 @@
 
             input.addEventListener('input', () => {
                 const swipe = input.value.trim();
+                const now = performance.now();
                 cancelPending();
                 const id = predictionId;
 
+                const currentLength = swipe.length;
+                if (currentLength > lastInputLength) {
+                    for (let i = lastInputLength; i < currentLength; i++) {
+                        charTimestamps.push(now);
+                    }
+                } else if (currentLength < lastInputLength) {
+                    charTimestamps = charTimestamps.slice(0, currentLength);
+                }
+                lastInputLength = currentLength;
+
+                drawStaticPath(swipe, [...charTimestamps]);
+                highlightKey(swipe[swipe.length - 1]);
+
                 if (!swipe) {
+                    charTimestamps = [];
+                    lastInputLength = 0;
                     results.innerHTML = '';
                     status.textContent = 'Ready';
                     return;
                 }
 
-                if (swipe.length < DEBOUNCE_THRESHOLD) {
-                    // Double rAF ensures paint completes before blocking WASM runs
-                    pendingRaf = requestAnimationFrame(() => {
-                        pendingRaf = requestAnimationFrame(() => {
-                            runPrediction(id);
-                        });
-                    });
-                } else {
+                pendingTimer = setTimeout(() => {
+                    runPrediction(id);
+                    startAnimation();
+                }, swipe.length < DEBOUNCE_THRESHOLD ? 100 : DEBOUNCE_DELAY);
+
+                if (swipe.length >= DEBOUNCE_THRESHOLD) {
                     status.textContent = 'Typing...';
-                    pendingTimer = setTimeout(() => runPrediction(id), DEBOUNCE_DELAY);
                 }
             });
         }
