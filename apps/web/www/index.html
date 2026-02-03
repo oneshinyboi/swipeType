@@ -67,7 +67,7 @@
             <li><strong>Sakoe-Chiba band</strong> — constrain DTW to a diagonal band, reducing complexity to O(n×w)</li>
             <li><strong>Early termination</strong> — prune candidates mid-computation if partial score exceeds current best</li>
             <li><strong>O(n) space</strong> — keep only two rows of the DTW matrix in memory</li>
-            <li><strong>First/last character filtering</strong> — only consider words matching the first character; penalize last character mismatches</li>
+            <li><strong>Start/end penalties</strong> — penalize words whose first or last character differs from the input path endpoints</li>
         </ul>
         <p><a href="https://github.com/ZimengXiong/swipePredictor">Source</a></p>
     </div>
