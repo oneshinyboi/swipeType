@@ -15,6 +15,9 @@ final class AppState: ObservableObject {
     @Published var currentInput: String = ""
     @Published var isOverlayVisible = false
     @Published var isWordCommitted = false  // True after debounce timeout
+    @Published var inputTimestamps: [TimeInterval] = []
+    @Published var isPlaybackActive = false
+    @Published var playbackStartTime: TimeInterval = 0
 
     // Status
     @Published var isDictionaryLoaded = false
@@ -47,6 +50,9 @@ final class AppState: ObservableObject {
         }
 
         currentInput.append(char)
+        inputTimestamps.append(Date().timeIntervalSinceReferenceDate)
+        isPlaybackActive = false
+        playbackStartTime = 0
         triggerPrediction()
         resetDebounceTimer()
 
@@ -69,6 +75,9 @@ final class AppState: ObservableObject {
         currentInput = ""
         predictions = []
         isWordCommitted = false
+        inputTimestamps = []
+        isPlaybackActive = false
+        playbackStartTime = 0
         cancelDebounceTimer()
     }
 
@@ -95,6 +104,10 @@ final class AppState: ObservableObject {
                 guard let self = self else { return }
                 if !self.currentInput.isEmpty && !self.predictions.isEmpty {
                     self.isWordCommitted = true
+                }
+                if self.currentInput.count >= 2 {
+                    self.isPlaybackActive = true
+                    self.playbackStartTime = Date().timeIntervalSinceReferenceDate
                 }
             }
         }

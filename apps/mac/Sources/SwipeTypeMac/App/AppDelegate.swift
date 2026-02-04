@@ -5,14 +5,27 @@
 
 import Cocoa
 import Carbon.HIToolbox
+import os
 
-private var overlayIsVisible = false
+private let overlayVisibility = OSAllocatedUnfairLock(initialState: false)
+private let swipeTypeSyntheticEventUserData: Int64 = 0x53575459 // 'SWTY'
+
+private func isOverlayVisible() -> Bool {
+    overlayVisibility.withLock { $0 }
+}
+
+private func setOverlayVisible(_ value: Bool) {
+    overlayVisibility.withLock { $0 = value }
+}
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayPanel: OverlayPanel?
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var statusItem: NSStatusItem?
+    private var statusTimer: Timer?
+    private var globalClickMonitor: Any?
+    private var localClickMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Load dictionary through AppState (handles errors and auto-download)
@@ -23,9 +36,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         setupGlobalHotkey()
         overlayPanel = OverlayPanel()
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(overlayDidHide), name: .hideOverlay, object: nil
+        )
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        removeOutsideClickMonitors()
         removeEventTap()
     }
 
@@ -47,7 +65,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.statusItem?.menu = menu
 
         // Update status periodically
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        statusTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.updateStatusMenuItem()
         }
     }
@@ -60,6 +78,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let state = AppState.shared
             if state.isDictionaryLoaded {
                 item.title = "✓ \(state.dictionaryWordCount) words loaded"
+                statusTimer?.invalidate()
+                statusTimer = nil
             } else {
                 item.title = "✗ Dictionary not loaded"
             }
@@ -69,13 +89,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleOverlay() {
         Task { @MainActor in
             AppState.shared.toggleOverlay()
-            overlayIsVisible = AppState.shared.isOverlayVisible
-            if overlayIsVisible {
+            setOverlayVisible(AppState.shared.isOverlayVisible)
+            if isOverlayVisible() {
                 overlayPanel?.showOverlay()
+                installOutsideClickMonitors()
             } else {
                 overlayPanel?.hide()
+                removeOutsideClickMonitors()
             }
         }
+    }
+
+    @objc private func overlayDidHide() {
+        setOverlayVisible(false)
+        removeOutsideClickMonitors()
     }
 
     private func setupGlobalHotkey() {
@@ -117,8 +144,76 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let source = runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes) }
     }
 
+    private func enableEventTap() {
+        if let tap = eventTap {
+            CGEvent.tapEnable(tap: tap, enable: true)
+        }
+    }
+
+    private func installOutsideClickMonitors() {
+        guard globalClickMonitor == nil, localClickMonitor == nil else { return }
+
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) {
+            [weak self] event in
+            self?.handleOutsideClick(event)
+            return event
+        }
+
+        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) {
+            [weak self] event in
+            self?.handleOutsideClick(event)
+        }
+    }
+
+    private func removeOutsideClickMonitors() {
+        if let localClickMonitor {
+            NSEvent.removeMonitor(localClickMonitor)
+            self.localClickMonitor = nil
+        }
+        if let globalClickMonitor {
+            NSEvent.removeMonitor(globalClickMonitor)
+            self.globalClickMonitor = nil
+        }
+    }
+
+    private func handleOutsideClick(_ event: NSEvent) {
+        Task { @MainActor [weak self] in
+            guard let self = self,
+                  isOverlayVisible(),
+                  let panel = overlayPanel,
+                  panel.isVisible else { return }
+
+            let screenPoint: NSPoint
+            if let window = event.window {
+                screenPoint = window.convertPoint(toScreen: event.locationInWindow)
+            } else {
+                screenPoint = event.locationInWindow
+            }
+
+            guard !panel.frame.contains(screenPoint) else { return }
+
+            AppState.shared.hideOverlay()
+            setOverlayVisible(false)
+            NotificationCenter.default.post(name: .hideOverlay, object: nil)
+            removeOutsideClickMonitors()
+        }
+    }
+
     private static func handleEvent(type: CGEventType, event: CGEvent, refcon: UnsafeMutableRawPointer?) -> Unmanaged<CGEvent>? {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let refcon {
+                DispatchQueue.main.async {
+                    Unmanaged<AppDelegate>.fromOpaque(refcon).takeUnretainedValue().enableEventTap()
+                }
+            }
+            return nil
+        }
         guard type == .keyDown || type == .keyUp else { return Unmanaged.passRetained(event) }
+
+        // Always allow SwipeType's own synthetic events through.
+        if event.getIntegerValueField(.eventSourceUserData) == swipeTypeSyntheticEventUserData {
+            return Unmanaged.passRetained(event)
+        }
 
         let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
         let flags = event.flags
@@ -134,7 +229,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return nil
         }
 
-        guard type == .keyDown, overlayIsVisible else { return Unmanaged.passRetained(event) }
+        guard type == .keyDown, isOverlayVisible() else { return Unmanaged.passRetained(event) }
 
         // Let modifier key combinations (Cmd+key, Ctrl+key, Option+key) pass through
         // These are likely shortcuts (including our own Cmd+V for paste)
@@ -169,15 +264,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             switch keyCode {
             case kVK_Escape:
                 state.hideOverlay()
-                overlayIsVisible = false
+                setOverlayVisible(false)
                 NotificationCenter.default.post(name: .hideOverlay, object: nil)
 
             case kVK_Delete:
                 state.deleteCharacter()
 
             case kVK_Return:
-                if let word = state.selectPrediction(at: 0) {
-                    TextInsertionService.shared.insertText(word + " ")
+                if state.currentInput.isEmpty || state.isWordCommitted {
+                    if let word = state.selectPrediction(at: 0) {
+                        TextInsertionService.shared.insertText(word + " ")
+                    }
                 }
 
             case kVK_Space:
@@ -186,8 +283,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             default:
                 if keyCode >= kVK_ANSI_1 && keyCode <= kVK_ANSI_5 {
-                    if let word = state.selectPrediction(at: keyCode - kVK_ANSI_1) {
-                        TextInsertionService.shared.insertText(word + " ")
+                    if state.currentInput.isEmpty || state.isWordCommitted {
+                        if let word = state.selectPrediction(at: keyCode - kVK_ANSI_1) {
+                            TextInsertionService.shared.insertText(word + " ")
+                        }
                     }
                 } else if let char = keyCodeToChar(keyCode) {
                     if let autoWord = state.addCharacter(char) {

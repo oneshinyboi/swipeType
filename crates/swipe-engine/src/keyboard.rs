@@ -11,14 +11,21 @@ pub fn get_keyboard_layout() -> HashMap<char, Point> {
 
     for (chars, x_offset, y) in rows {
         for (i, c) in chars.chars().enumerate() {
-            layout.insert(c, Point { x: i as f64 + x_offset, y });
+            layout.insert(
+                c,
+                Point {
+                    x: i as f64 + x_offset,
+                    y,
+                },
+            );
         }
     }
     layout
 }
 
 pub fn get_word_path(word: &str, layout: &HashMap<char, Point>) -> Vec<Point> {
-    let key_points: Vec<Point> = word.chars()
+    let key_points: Vec<Point> = word
+        .chars()
         .filter_map(|c| layout.get(&c.to_ascii_lowercase()).cloned())
         .collect();
 

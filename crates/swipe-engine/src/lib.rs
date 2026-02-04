@@ -1,8 +1,8 @@
 //! Swipe typing prediction engine
 
-pub mod types;
-pub mod keyboard;
 pub mod dtw;
+pub mod keyboard;
+pub mod types;
 
 #[cfg(feature = "wasm")]
 pub mod wasm;
@@ -13,14 +13,17 @@ pub use wasm::*;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 
+use dtw::dtw_distance_fast;
+use keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path};
 use std::collections::HashMap;
 use types::{Dictionary, Point, Prediction};
-use keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path};
-use dtw::dtw_distance_fast;
 
+pub use dtw::{dtw_distance, dtw_distance_fast as dtw_fast};
+pub use keyboard::{
+    euclidean_dist as euclidean_distance, get_keyboard_layout as keyboard_layout,
+    get_word_path as word_path, simplify_path as path_simplify,
+};
 pub use types::Point as PointType;
-pub use keyboard::{euclidean_dist as euclidean_distance, get_keyboard_layout as keyboard_layout, get_word_path as word_path, simplify_path as path_simplify};
-pub use dtw::{dtw_distance_fast as dtw_fast, dtw_distance};
 
 /// The main swipe typing prediction engine
 pub struct SwipeEngine {
@@ -29,6 +32,7 @@ pub struct SwipeEngine {
     pop_weight: f64,
     // Index by first letter
     by_first_letter: HashMap<char, Vec<usize>>,
+    word_paths: Vec<Vec<Point>>,
 }
 
 impl SwipeEngine {
@@ -38,6 +42,7 @@ impl SwipeEngine {
             layout: get_keyboard_layout(),
             pop_weight: 0.25,
             by_first_letter: HashMap::new(),
+            word_paths: Vec::new(),
         }
     }
 
@@ -52,6 +57,8 @@ impl SwipeEngine {
 
     fn build_index(&mut self) {
         self.by_first_letter.clear();
+        self.word_paths.clear();
+        self.word_paths.reserve(self.dictionary.words.len());
         for (idx, word) in self.dictionary.words.iter().enumerate() {
             if let Some(first) = word.chars().next() {
                 self.by_first_letter
@@ -59,6 +66,8 @@ impl SwipeEngine {
                     .or_insert_with(Vec::new)
                     .push(idx);
             }
+            let raw_path = get_word_path(word, &self.layout);
+            self.word_paths.push(simplify_path(&raw_path));
         }
     }
 
@@ -80,12 +89,20 @@ impl SwipeEngine {
             None => return vec![],
         };
         let last_char = swipe_input.chars().last().unwrap().to_ascii_lowercase();
-        let first_char_pt = self.layout.get(&first_char).cloned().unwrap_or(Point { x: 0.0, y: 0.0 });
-        let last_char_pt = self.layout.get(&last_char).cloned().unwrap_or(Point { x: 0.0, y: 0.0 });
+        let first_char_pt = self
+            .layout
+            .get(&first_char)
+            .cloned()
+            .unwrap_or(Point { x: 0.0, y: 0.0 });
+        let last_char_pt = self
+            .layout
+            .get(&last_char)
+            .cloned()
+            .unwrap_or(Point { x: 0.0, y: 0.0 });
 
         // Get candidate indices - only words starting with first char
         let candidate_indices = match self.by_first_letter.get(&first_char) {
-            Some(indices) => indices.clone(),
+            Some(indices) => indices,
             None => return vec![],
         };
 
@@ -108,8 +125,8 @@ impl SwipeEngine {
                 }
 
                 let cutoff = best_score * input_len;
-                let word_path = get_word_path(w, &self.layout);
-                let dist = dtw_distance_fast(&input_path, &word_path, window, cutoff);
+                let word_path = &self.word_paths[idx];
+                let dist = dtw_distance_fast(&input_path, word_path, window, cutoff);
 
                 if dist == f64::INFINITY {
                     return None;
@@ -128,7 +145,9 @@ impl SwipeEngine {
         candidates.sort_by(|a, b| {
             let combined_a = a.1 - a.2 * self.pop_weight;
             let combined_b = b.1 - b.2 * self.pop_weight;
-            combined_a.partial_cmp(&combined_b).unwrap_or(std::cmp::Ordering::Equal)
+            combined_a
+                .partial_cmp(&combined_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         candidates

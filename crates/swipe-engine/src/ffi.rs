@@ -2,10 +2,10 @@
 //!
 //! This module provides a C-compatible API for using the SwipeEngine from other languages.
 
+use once_cell::sync::Lazy;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::sync::Mutex;
-use once_cell::sync::Lazy;
 
 use crate::SwipeEngine;
 
@@ -101,9 +101,20 @@ pub extern "C" fn swipe_engine_predict(input: *const c_char, limit: i32) -> *mut
         if i > 0 {
             json.push(',');
         }
+        json.push_str(r#"{"word":""#);
+        for ch in pred.word.chars() {
+            match ch {
+                '"' => json.push_str("\\\""),
+                '\\' => json.push_str("\\\\"),
+                '\n' => json.push_str("\\n"),
+                '\r' => json.push_str("\\r"),
+                '\t' => json.push_str("\\t"),
+                _ => json.push(ch),
+            }
+        }
         json.push_str(&format!(
-            r#"{{"word":"{}","score":{:.4},"freq":{:.4}}}"#,
-            pred.word, pred.score, pred.freq
+            r#"","score":{:.4},"freq":{:.4}}}"#,
+            pred.score, pred.freq
         ));
     }
     json.push(']');

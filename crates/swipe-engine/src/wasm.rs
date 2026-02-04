@@ -1,7 +1,7 @@
 //! WASM bindings for the swipe engine (feature-gated)
 
-use crate::keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path};
 use crate::dtw::dtw_distance_fast;
+use crate::keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path};
 use crate::types::{Dictionary, Point, Prediction};
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
@@ -44,14 +44,21 @@ pub fn predict_wasm(swipe_input: &str, limit: usize) -> String {
             Some(c) => c,
             None => return "[]".to_string(),
         };
-        let first_char_pt = layout.get(&first_char).cloned().unwrap_or(Point { x: 0.0, y: 0.0 });
+        let first_char_pt = layout
+            .get(&first_char)
+            .cloned()
+            .unwrap_or(Point { x: 0.0, y: 0.0 });
         let last_char = swipe_input.chars().last().unwrap();
-        let last_char_pt = layout.get(&last_char).cloned().unwrap_or(Point { x: 0.0, y: 0.0 });
+        let last_char_pt = layout
+            .get(&last_char)
+            .cloned()
+            .unwrap_or(Point { x: 0.0, y: 0.0 });
 
         let window = (input_path.len() / 2).max(10);
         let mut best_score = f64::INFINITY;
 
-        let mut candidates: Vec<(String, f64, f64)> = dict.words
+        let mut candidates: Vec<(String, f64, f64)> = dict
+            .words
             .iter()
             .filter(|w| !w.is_empty())
             .filter_map(|w| {
@@ -98,7 +105,9 @@ pub fn predict_wasm(swipe_input: &str, limit: usize) -> String {
         candidates.sort_by(|a, b| {
             let combined_a = a.1 - a.2 * pop_weight;
             let combined_b = b.1 - b.2 * pop_weight;
-            combined_a.partial_cmp(&combined_b).unwrap_or(std::cmp::Ordering::Equal)
+            combined_a
+                .partial_cmp(&combined_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         let predictions: Vec<Prediction> = candidates
