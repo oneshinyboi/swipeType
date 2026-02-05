@@ -7,10 +7,9 @@ use std::sync::Mutex;
 
 use crate::SwipeEngine;
 
-/// Global engine instance
 static ENGINE: Lazy<Mutex<SwipeEngine>> = Lazy::new(|| Mutex::new(SwipeEngine::new()));
 
-/// Initialize the engine with a dictionary file path. Returns the number of words loaded, or -1 on error.
+/// Returns the number of words loaded, or -1 on error.
 #[no_mangle]
 pub extern "C" fn swipe_engine_load_dictionary(path: *const c_char) -> i32 {
     if path.is_null() {
@@ -38,7 +37,7 @@ pub extern "C" fn swipe_engine_load_dictionary(path: *const c_char) -> i32 {
     engine.word_count() as i32
 }
 
-/// Load dictionary from string content
+/// Returns the number of words loaded, or -1 on error.
 #[no_mangle]
 pub extern "C" fn swipe_engine_load_dictionary_str(content: *const c_char) -> i32 {
     if content.is_null() {
@@ -61,7 +60,6 @@ pub extern "C" fn swipe_engine_load_dictionary_str(content: *const c_char) -> i3
     engine.word_count() as i32
 }
 
-/// Get the number of words in the dictionary
 #[no_mangle]
 pub extern "C" fn swipe_engine_word_count() -> i32 {
     match ENGINE.lock() {
@@ -70,7 +68,7 @@ pub extern "C" fn swipe_engine_word_count() -> i32 {
     }
 }
 
-/// Predict words from swipe input. Returns a JSON string with predictions array, caller must free with swipe_engine_free_string.
+/// Returns a JSON string with predictions array. Caller must free with swipe_engine_free_string.
 #[no_mangle]
 pub extern "C" fn swipe_engine_predict(input: *const c_char, limit: i32) -> *mut c_char {
     if input.is_null() {
@@ -120,7 +118,6 @@ pub extern "C" fn swipe_engine_predict(input: *const c_char, limit: i32) -> *mut
     }
 }
 
-/// Free a string returned by the engine.
 #[no_mangle]
 pub extern "C" fn swipe_engine_free_string(s: *mut c_char) {
     if !s.is_null() {
@@ -130,7 +127,6 @@ pub extern "C" fn swipe_engine_free_string(s: *mut c_char) {
     }
 }
 
-/// Set the popularity weight (0.0 to 1.0).
 #[no_mangle]
 pub extern "C" fn swipe_engine_set_pop_weight(weight: f64) {
     if let Ok(mut engine) = ENGINE.lock() {

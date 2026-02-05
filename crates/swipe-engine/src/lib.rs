@@ -25,7 +25,8 @@ pub use keyboard::{
 };
 pub use types::Point as PointType;
 
-/// The main swipe typing prediction engine
+/// Uses a Dynamic Time Warping (DTW) algorithm to compare swipe paths
+/// against a dictionary of words.
 pub struct SwipeEngine {
     dictionary: Dictionary,
     layout: HashMap<char, Point>,
@@ -36,6 +37,7 @@ pub struct SwipeEngine {
 }
 
 impl SwipeEngine {
+    /// Initializes with default QWERTY layout.
     pub fn new() -> Self {
         Self {
             dictionary: Dictionary::new(),
@@ -46,10 +48,12 @@ impl SwipeEngine {
         }
     }
 
+    /// Higher values favor common words more heavily in the scoring function.
     pub fn set_pop_weight(&mut self, weight: f64) {
         self.pop_weight = weight;
     }
 
+    /// Dictionary format: tab-separated "word\tcount" per line.
     pub fn load_dictionary(&mut self, freq_text: &str) {
         self.dictionary.load_from_text(freq_text);
         self.build_index();
@@ -75,6 +79,8 @@ impl SwipeEngine {
         self.dictionary.words.len()
     }
 
+    /// Input string should be the sequence of characters the swipe path passes through.
+    /// Returns predictions sorted by score.
     pub fn predict(&self, swipe_input: &str, limit: usize) -> Vec<Prediction> {
         let raw_input_path = get_word_path(swipe_input, &self.layout);
         if raw_input_path.is_empty() {
@@ -89,11 +95,6 @@ impl SwipeEngine {
             None => return vec![],
         };
         let last_char = swipe_input.chars().last().unwrap().to_ascii_lowercase();
-        let first_char_pt = self
-            .layout
-            .get(&first_char)
-            .cloned()
-            .unwrap_or(Point { x: 0.0, y: 0.0 });
         let last_char_pt = self
             .layout
             .get(&last_char)

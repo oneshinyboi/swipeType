@@ -1,7 +1,14 @@
 [package]
 name = "swipe-engine"
-version.workspace = true
-edition.workspace = true
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+description = "A fast swipe typing prediction engine using Dynamic Time Warping (DTW)"
+repository = "https://github.com/ZimengXiong/swipeType"
+readme = "README.md"
+keywords = ["swipe", "typing", "prediction", "dtw", "keyboard"]
+categories = ["algorithms", "text-processing"]
 
 [lib]
 crate-type = ["lib", "staticlib", "cdylib"]
