@@ -1,35 +1,49 @@
-# Swipe Predictor
+# swipeType
 
-Swipe typing lets you draw a path across the keyboard instead of tapping individual keys. This predictor matches your input pattern against a word list.
+Swipe typing engine and macOS application.
 
-Each word is converted to a path on a QWERTY keyboard layout. The algorithm uses [Dynamic Time Warping (DTW)](https://en.wikipedia.org/wiki/Dynamic_time_warping) to measure how similar your swipe path is to each word's path. Words with similar paths get low scores.
+- **Rust engine** (`crates/swipe-engine`)
+- [Web interface](https://swipetype.zimengxiong.com) (`apps/web`)
+- **macOS app** (`apps/mac`)
 
-Word frequency from a corpus is used as a tiebreaker—common words rank higher when paths are equally close.
+The engine uses [Dynamic Time Warping (DTW)](https://en.wikipedia.org/wiki/Dynamic_time_warping) to measure similarity between the user's swipe path and pre-computed word paths on a QWERTY keyboard layout. Each word in the dictionary is converted into a series of coordinates based on key positions, and DTW computes a distance score by finding the optimal alignment between two sequences while allowing time warping. To handle 300k+ words efficiently, the engine applies a Sakoe-Chiba band window to constrain DTW to a diagonal band (O(n×w) instead of O(n×m)), maintains O(n) space by keeping only two rows of the matrix, and filters candidates by first/last character to avoid unnecessary comparisons.
 
-Try these swipe patterns:
+## Installation
 
-- `asdfghjkl;poiuygfdsascsa` → alpaca
-- `poiuytrernmngyuijnb` → penguin
+```bash
+brew install zimengxiong/tools/swipetype
+```
 
-## Optimizations
+## Building
 
-To run DTW (an O(n×m) algorithm) against 333k words in milliseconds entirely client-side, we needed some optimizations. The engine is written in Rust and compiled to WebAssembly:
-
-- **Sakoe-Chiba band** — constrain DTW to a diagonal band, reducing complexity to O(n×w)
-- **Early termination** — prune candidates mid-computation if partial score exceeds current best
-- **O(n) space** — keep only two rows of the DTW matrix in memory
-- **First/last character filtering** — only consider words matching the first character; penalize last character mismatches
-
-## Build
+### Web
 
 ```bash
 make build-website
-```
-
-## Serve locally
-
-```bash
 make serve
 ```
 
-Then open http://localhost:8000
+### macOS App
+
+```bash
+make dmg-mac
+make run
+# Creates `apps/mac/build/SwipeType.dmg`
+```
+
+#### Screenshots
+
+<div style="display: flex; gap: 20px;">
+    <div style="flex: 1;">
+        <img src="screenshots/main.png" alt="Main" style="width: 100%;">
+    </div>
+    <div style="flex: 1;">
+        <img src="screenshots/help.png" alt="Help" style="width: 100%;">
+    </div>
+</div>
+
+<div style="display: flex; gap: 20px; margin-top: 20px;">
+    <div style="flex: 1;">
+        <img src="screenshots/settings.png" alt="Settings" style="width: 100%;">
+    </div>
+</div>
