@@ -33,17 +33,10 @@ make run
 
 #### Screenshots
 
-<div style="display: flex; gap: 20px;">
-    <div style="flex: 1;">
-        <img src="screenshots/main.png" alt="Main" style="width: 100%;">
-    </div>
-    <div style="flex: 1;">
-        <img src="screenshots/help.png" alt="Help" style="width: 100%;">
-    </div>
-</div>
+| Main                          | Help                          |
+| ----------------------------- | ----------------------------- |
+| ![Main](screenshots/main.png) | ![Help](screenshots/help.png) |
 
-<div style="display: flex; gap: 20px; margin-top: 20px;">
-    <div style="flex: 1;">
-        <img src="screenshots/settings.png" alt="Settings" style="width: 100%;">
-    </div>
-</div>
+| Settings                              |
+| ------------------------------------- |
+| ![Settings](screenshots/settings.png) |
