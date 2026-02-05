@@ -102,6 +102,9 @@ else
     echo "Warning: Cask file not found at $CASK_FILE"
 fi
 
+# Detect current branch
+CURRENT_BRANCH=$(git branch --show-current)
+
 # 2. Main Repo Git Operations
 echo "Committing main repo changes..."
 git add "$VERSION_FILE" "$BUILD_NUMBER_FILE" apps/mac/project.yml Cargo.toml .gitignore
@@ -110,8 +113,8 @@ git commit -m "chore: release $TAG_NAME (Build $FINAL_BUILD)" || echo "No change
 echo "Tagging $TAG_NAME..."
 git tag -a "$TAG_NAME" -m "$RELEASE_TITLE" || echo "Tag already exists"
 
-echo "Pushing main repo to GitHub..."
-git push origin main
+echo "Pushing main repo to GitHub ($CURRENT_BRANCH)..."
+git push origin "$CURRENT_BRANCH"
 git push origin "$TAG_NAME"
 
 # 3. GitHub Release
@@ -121,9 +124,10 @@ gh release create "$TAG_NAME" "$DMG_PATH" --title "$RELEASE_TITLE" --notes "Auto
 # 4. Homebrew Repo Git Operations
 echo "Committing Homebrew repo changes..."
 cd "$ROOT_DIR/homebrew"
+HB_BRANCH=$(git branch --show-current)
 git add "Casks/swipetype.rb"
 git commit -m "swipetype $NEW_VERSION" || echo "No changes to commit in homebrew repo"
-echo "Pushing Homebrew repo to GitHub..."
-git push origin main
+echo "Pushing Homebrew repo to GitHub ($HB_BRANCH)..."
+git push origin "$HB_BRANCH"
 
 echo "All done! Release $TAG_NAME is live and Homebrew cask is updated."
