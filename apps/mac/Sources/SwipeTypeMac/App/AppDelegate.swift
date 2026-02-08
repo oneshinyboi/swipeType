@@ -253,7 +253,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
+        let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
@@ -342,10 +342,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             return nil
         }
-        guard type == .keyDown || type == .keyUp else { return Unmanaged.passRetained(event) }
+        guard type == .keyDown else { return Unmanaged.passUnretained(event) }
 
         if event.getIntegerValueField(.eventSourceUserData) == swipeTypeSyntheticEventUserData {
-            return Unmanaged.passRetained(event)
+            return Unmanaged.passUnretained(event)
         }
 
         let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
@@ -361,14 +361,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return nil
         }
 
-        guard type == .keyDown, isOverlayVisible() else { return Unmanaged.passRetained(event) }
+        guard isOverlayVisible() else { return Unmanaged.passUnretained(event) }
 
         let hasModifier = flags.contains(.maskCommand) || flags.contains(.maskControl) || flags.contains(.maskAlternate)
         if hasModifier {
-            return Unmanaged.passRetained(event)
+            return Unmanaged.passUnretained(event)
         }
 
-        return handleKey(keyCode, flags: flags) ? nil : Unmanaged.passRetained(event)
+        return handleKey(keyCode, flags: flags) ? nil : Unmanaged.passUnretained(event)
     }
 
     private static let passthroughKeys: Set<Int> = [

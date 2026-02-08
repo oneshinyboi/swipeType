@@ -379,7 +379,7 @@ struct KeyboardView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            TimelineView(.periodic(from: .now, by: isPlaybackActive ? 1.0 / 60.0 : 0.5)) { timeline in
+            TimelineView(.periodic(from: .now, by: isPlaybackActive ? 1.0 / 60.0 : 60.0)) { timeline in
                 Canvas { context, _ in
                     let totalCols: CGFloat = 13
                     let gap: CGFloat = 2
