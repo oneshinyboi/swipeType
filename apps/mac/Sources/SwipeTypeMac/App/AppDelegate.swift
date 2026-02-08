@@ -426,7 +426,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     }
                 } else if let char = keyCodeToChar(keyCode) {
                     if let autoWord = state.addCharacter(char) {
-                        TextInsertionService.shared.insertText(AppSettings.committedText(for: autoWord))
+                        TextInsertionService.shared.insertText(
+                            AppSettings.committedText(for: autoWord, whenNextCharacterIs: char)
+                        )
                     }
                 }
             }
@@ -442,6 +444,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
          kVK_ANSI_M: "m", kVK_ANSI_N: "n", kVK_ANSI_O: "o", kVK_ANSI_P: "p",
          kVK_ANSI_Q: "q", kVK_ANSI_R: "r", kVK_ANSI_S: "s", kVK_ANSI_T: "t",
          kVK_ANSI_U: "u", kVK_ANSI_V: "v", kVK_ANSI_W: "w", kVK_ANSI_X: "x",
-         kVK_ANSI_Y: "y", kVK_ANSI_Z: "z"][keyCode]
+         kVK_ANSI_Y: "y", kVK_ANSI_Z: "z", kVK_ANSI_Comma: ",",
+         kVK_ANSI_Period: "."][keyCode]
     }
 }

@@ -113,6 +113,13 @@ final class AppState: ObservableObject {
         let thisRequest = requestId
         let input = currentInput
 
+        if let punctuationPrediction = punctuationPrediction(for: input) {
+            predictions = [Prediction(word: punctuationPrediction, score: 1.0, freq: 0.0)]
+            predictionTime = 0
+            updateWPM()
+            return
+        }
+
         let startTime = Date().timeIntervalSinceReferenceDate
         DispatchQueue.global(qos: .userInitiated).async {
             let results = SwipeEngineBridge.shared.predict(input: input, limit: 5)
@@ -126,6 +133,12 @@ final class AppState: ObservableObject {
                 self.updateWPM()
             }
         }
+    }
+
+    private func punctuationPrediction(for input: String) -> String? {
+        guard input.count == 1, let first = input.first else { return nil }
+        guard AppSettings.supportsInlinePunctuationCompletion(first) else { return nil }
+        return String(first)
     }
 
     private func updateWPM() {

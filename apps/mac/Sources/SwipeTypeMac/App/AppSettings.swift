@@ -209,8 +209,18 @@ enum AppSettings {
         }
     }
 
-    static func committedText(for word: String) -> String {
-        insertTrailingSpace ? (word + " ") : word
+    private static let noLeadingSpaceBeforeCharacters: Set<Character> = [",", "."]
+
+    static func committedText(for word: String, whenNextCharacterIs nextCharacter: Character? = nil) -> String {
+        guard insertTrailingSpace else { return word }
+        if let nextCharacter, noLeadingSpaceBeforeCharacters.contains(nextCharacter) {
+            return word
+        }
+        return word + " "
+    }
+
+    static func supportsInlinePunctuationCompletion(_ character: Character) -> Bool {
+        noLeadingSpaceBeforeCharacters.contains(character)
     }
 
     static func hotkeyDisplayName(keyCode: Int, modifierMask: Int) -> String {
