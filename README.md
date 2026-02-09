@@ -2,6 +2,8 @@
 
 Swipe typing engine and macOS application.
 
+https://github.com/user-attachments/assets/666b0d5c-e7f5-42d0-9504-a1af183c1f8f
+
 - **Rust engine** (`crates/swipe-engine`)
 - [Web interface](https://swipetype.zimengxiong.com) (`apps/web`)
 - **macOS app** (`apps/mac`)
