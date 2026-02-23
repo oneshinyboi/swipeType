@@ -23,3 +23,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 wasm-bindgen = { workspace = true, optional = true }
 once_cell = { version = "1.19", optional = true }
+
+[build-dependencies]
+bincode = "3.0.0"
