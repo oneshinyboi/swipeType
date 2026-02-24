@@ -1,8 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/swipe-engine",
-    "apps/web", "crates/swipe-types",
+    "crates/super-swipe-engine",
+    "crates/swipe-types",
 ]
 
 [workspace.package]

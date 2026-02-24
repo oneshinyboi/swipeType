@@ -22,7 +22,7 @@ brew install zimengxiong/tools/swipetype
 <summary>Rust Engine</summary>
 
 ```bash
-cd crates/swipe-engine
+cd crates/super-swipe-engine
 
 # Build native library
 cargo build

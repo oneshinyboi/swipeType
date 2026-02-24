@@ -6,11 +6,25 @@ A fast swipe typing prediction engine written in Rust.
 
 - **DTW Algorithm**: Uses Dynamic Time Warping for robust path comparison.
 - **Fast**: Optimized with path simplification and early pruning.
-- **FFI Support**: Can be used from other languages (like Swift for macOS apps).
 - **Customizable**: Adjustable popularity weighting for word scoring.
 
 ## Usage
+In order to compile you must provide a `corpus.txt` and a `word_list.txt` inside your project directory as follows. To support multiple languages use more folders named with the 639-1 language code.
 
+```plaintext
+├── build.rs
+├── Cargo.toml
+├── corpuses
+│   └── plaintext
+│       └── en
+│           ├── corpus.txt
+│           └─ word_list.txt
+├── LICENSE
+├── README.md
+└── src
+    ├── rust1.rs
+    └── rust2.rs
+```
 ```rust
 use swipe_engine::SwipeEngine;
 

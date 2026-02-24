@@ -4,9 +4,6 @@ pub mod dtw;
 pub mod keyboard;
 
 
-#[cfg(feature = "ffi")]
-pub mod ffi;
-
 use bincode;
 use codes_iso_639::part_1::LanguageCode;
 use dtw::dtw_distance_fast;
@@ -14,7 +11,7 @@ use keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path
 use std::collections::HashMap;
 use std::path::Path;
 use std::{env, fs};
-use swipe_types::types::{Dictionary, Point, Prediction, WordInfo};
+use swipe_types::types::{Dictionary, Point, Prediction};
 
 pub use dtw::{dtw_distance, dtw_distance_fast as dtw_fast};
 pub use keyboard::{
@@ -170,7 +167,7 @@ impl SwipeEngine {
 
                 if let Some(word_info) = word_info {
                     word_freq = word_info.log_freq;
-                    if let Some(mut previous_word) = previous_word {
+                    if let Some(previous_word) = previous_word {
                         let previous_word_lowercase = previous_word.to_lowercase();
                         if let Some(pair_counts) = &self.dictionary.pair_counts {
                             if let Some(pair_count_map) = pair_counts.get(&previous_word_lowercase) {
