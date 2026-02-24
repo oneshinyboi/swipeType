@@ -17,15 +17,17 @@ crate-type = ["lib", "staticlib", "cdylib"]
 default = []
 wasm = ["wasm-bindgen"]
 ffi = ["once_cell"]
-skip-corpus = []
+force-corpus = []
 
 [dependencies]
 swipe-types = {path = "../swipe-types"}
 serde_json = { workspace = true }
 wasm-bindgen = { workspace = true, optional = true }
 once_cell = { version = "1.19", optional = true }
+bincode = "2.0.1"
+codes-iso-639 = "0.1.5"
 
 [build-dependencies]
 swipe-types = {path = "../swipe-types"}
 bincode = "2.0.1"
-
+codes-iso-639 = "0.1.5"

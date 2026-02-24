@@ -33,7 +33,7 @@ pub extern "C" fn swipe_engine_load_dictionary(path: *const c_char) -> i32 {
         Err(_) => return -1,
     };
 
-    engine.load_dictionary(&content);
+    engine.load_dictionary_from_text(&content);
     engine.word_count() as i32
 }
 
@@ -56,7 +56,7 @@ pub extern "C" fn swipe_engine_load_dictionary_str(content: *const c_char) -> i3
         Err(_) => return -1,
     };
 
-    engine.load_dictionary(content_str);
+    engine.load_dictionary_from_text(content_str);
     engine.word_count() as i32
 }
 

@@ -12,9 +12,13 @@ pub use wasm::*;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 
+use bincode;
+use codes_iso_639::part_1::LanguageCode;
 use dtw::dtw_distance_fast;
 use keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path};
 use std::collections::HashMap;
+use std::path::Path;
+use std::{env, fs};
 use swipe_types::types::{BigramModel, Point, Prediction};
 
 pub use dtw::{dtw_distance, dtw_distance_fast as dtw_fast};
@@ -36,26 +40,47 @@ pub struct SwipeEngine {
 }
 
 impl SwipeEngine {
-    /// Initializes with default QWERTY layout.
-    pub fn new() -> Self {
-        Self {
-            dictionary: BigramModel::new(),
-            layout: get_keyboard_layout(),
-            pop_weight: 0.25,
-            by_first_letter: HashMap::new(),
-            word_paths: Vec::new(),
+    pub fn new(lang_code: LanguageCode, layout: Option<HashMap<char, Point>>) -> Result<Self, String> {
+        let lang = lang_code.to_string();
+        let out_dir_string = env::var("OUT_DIR").unwrap();
+        let out_dir = Path::new(&out_dir_string);
+
+        let dict_path = out_dir.join(format!("corpuses/bin/{lang}.bin"));
+
+        if !dict_path.exists() {
+            return Err(format!(
+                "Language {lang} is unsupported or dictionary file not found at {}",
+                dict_path.display()
+            ));
+        }
+
+        match fs::read(dict_path) {
+            Ok(bytes) => {
+                match bincode::decode_from_slice(&bytes, bincode::config::standard()) {
+                    Ok((model, _len)) => {
+                        let mut engine = Self {
+                            dictionary: model,
+                            layout: layout.unwrap_or_else(get_keyboard_layout),
+                            pop_weight: 0.25,
+                            by_first_letter: HashMap::new(),
+                            word_paths: Vec::new(),
+                        };
+                        engine.build_index();
+                        Ok(engine)
+                    }
+                    Err(e) => Err(format!("Failed to decode dictionary for {}: {}", lang, e)),
+                }
+            }
+            Err(e) => Err(format!(
+                "Failed to read dictionary file for {}: {}",
+                lang, e
+            )),
         }
     }
 
     /// Higher values favor common words more heavily in the scoring function.
     pub fn set_pop_weight(&mut self, weight: f64) {
         self.pop_weight = weight;
-    }
-
-    /// Dictionary format: tab-separated "word\tcount" per line.
-    pub fn load_dictionary(&mut self, freq_text: &str) {
-        self.dictionary.load_from_text(freq_text);
-        self.build_index();
     }
 
     fn build_index(&mut self) {
@@ -159,7 +184,7 @@ impl SwipeEngine {
 
 impl Default for SwipeEngine {
     fn default() -> Self {
-        Self::new()
+        Self::new(LanguageCode::En, None).unwrap()
     }
 }
 
@@ -169,21 +194,14 @@ mod tests {
 
     #[test]
     fn test_engine_creation() {
-        let engine = SwipeEngine::new();
-        assert_eq!(engine.word_count(), 0);
+        let engine = SwipeEngine::new(LanguageCode::En, None).unwrap();
+        assert!(engine.word_count() > 0, "Dictionary should be loaded by default");
     }
 
-    #[test]
-    fn test_dictionary_loading() {
-        let mut engine = SwipeEngine::new();
-        engine.load_dictionary("hello\t1000\nworld\t500\n");
-        assert_eq!(engine.word_count(), 2);
-    }
 
     #[test]
     fn test_prediction() {
-        let mut engine = SwipeEngine::new();
-        engine.load_dictionary("hello\t1000\nhello\t1000\nhelp\t800\nhell\t600\n");
+        let engine = SwipeEngine::new(LanguageCode::En, None).unwrap();
 
         let predictions = engine.predict("hello", 5);
         assert!(!predictions.is_empty());
