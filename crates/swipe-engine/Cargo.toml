@@ -5,7 +5,8 @@ edition = { workspace = true }
 authors = { workspace = true }
 license = { workspace = true }
 description = "A fast swipe typing prediction engine using Dynamic Time Warping (DTW)"
-repository = "https://github.com/ZimengXiong/swipeType"
+repository = "https://github.com/oneshinyboi/swipeType"
+homepage = "https://github.com/oneshinyboi/swipeType"
 readme = "README.md"
 keywords = ["swipe", "typing", "prediction", "dtw", "keyboard"]
 categories = ["algorithms", "text-processing"]

@@ -6,9 +6,9 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
-authors = ["Zimeng Xiong"]
+authors = ["Zimeng Xiong", "Diamond White"]
 license = "MIT"
 
 [workspace.dependencies]

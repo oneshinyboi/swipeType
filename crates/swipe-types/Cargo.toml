@@ -4,6 +4,12 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+description = "Types for swipe-engine"
+repository = "https://github.com/oneshinyboi/swipeType"
+homepage = "https://github.com/oneshinyboi/swipeType"
+readme = "README.md"
+keywords = ["swipe", "typing", "prediction", "dtw", "keyboard"]
+categories = ["algorithms", "text-processing"]
 
 [dependencies]
 bincode = "2.0.1"

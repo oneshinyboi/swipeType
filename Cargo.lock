@@ -695,7 +695,7 @@ dependencies = [
 
 [[package]]
 name = "swipe-engine"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "bincode",
  "codes-iso-639",
@@ -707,7 +707,7 @@ dependencies = [
 
 [[package]]
 name = "swipe-types"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "bincode",
  "serde",
@@ -715,7 +715,7 @@ dependencies = [
 
 [[package]]
 name = "swipe-web"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "swipe-engine",
  "wasm-bindgen",
