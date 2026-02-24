@@ -10,6 +10,7 @@ homepage = "https://github.com/oneshinyboi/swipeType"
 readme = "README.md"
 keywords = ["swipe", "typing", "prediction", "dtw", "keyboard"]
 categories = ["algorithms", "text-processing"]
+exclude = ["corpuses/*"]
 
 [lib]
 crate-type = ["lib", "staticlib", "cdylib"]

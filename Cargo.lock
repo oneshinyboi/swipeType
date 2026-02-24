@@ -695,22 +695,14 @@ dependencies = [
 
 [[package]]
 name = "super-swipe-engine"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "bincode",
  "codes-iso-639",
  "once_cell",
  "serde_json",
- "swipe-types 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "swipe-types 0.1.5",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "swipe-types"
-version = "0.1.5"
-dependencies = [
- "bincode",
- "serde",
 ]
 
 [[package]]
@@ -718,6 +710,14 @@ name = "swipe-types"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ce36256505198b55f911f7962cc8605d613943131349f27aa93abf10a2b2aaf"
+dependencies = [
+ "bincode",
+ "serde",
+]
+
+[[package]]
+name = "swipe-types"
+version = "0.1.6"
 dependencies = [
  "bincode",
  "serde",
