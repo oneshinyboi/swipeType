@@ -13,14 +13,30 @@ pub struct Prediction {
     pub word: String,
     pub score: f64,
     pub freq: f64,
+    pub bigram_prob: f64,
 }
 
 
 #[derive(Encode, Decode)]
 pub struct BigramModel {
     pub pair_counts: HashMap<String, HashMap<String, u32>>,
+
     pub words: Vec<String>,
-    pub freq: HashMap<String, f64>,
+    pub word_info: HashMap<String, WordInfo>,
+}
+
+#[derive(Encode, Decode)]
+pub struct WordInfo {
+    pub log_freq: f64,
+    pub count: u32,
+}
+impl Default for WordInfo {
+    fn default() -> Self {
+        Self {
+            log_freq: 0.0,
+            count: 0
+        }
+    }
 }
 
 
@@ -29,41 +45,8 @@ impl BigramModel {
         Self {
             pair_counts: HashMap::new(),
             words: Vec::new(),
-            freq: HashMap::new(),
+            word_info: HashMap::new(),
         }
-    }
-
-    pub fn load_from_text(&mut self, freq_text: &str) {
-        let mut words = Vec::new();
-        let mut freq_map = HashMap::new();
-        let mut max_freq: f64 = 0.0;
-
-        let lines: Vec<&str> = freq_text.lines().collect();
-
-        for line in &lines {
-            if let Some((_, count_str)) = line.split_once('\t') {
-                if let Ok(count) = count_str.parse::<f64>() {
-                    max_freq = max_freq.max(count);
-                }
-            }
-        }
-
-        for line in &lines {
-            if let Some((word, count_str)) = line.split_once('\t') {
-                let word = word.trim().to_lowercase();
-                if word.is_empty() {
-                    continue;
-                }
-                words.push(word.clone());
-                if let Ok(count) = count_str.parse::<f64>() {
-                    let log_freq = (count.ln() - 1.0) / max_freq.ln();
-                    freq_map.insert(word, log_freq.max(0.0));
-                }
-            }
-        }
-
-        self.words = words;
-        self.freq = freq_map;
     }
 }
 

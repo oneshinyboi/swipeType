@@ -3,7 +3,7 @@ use std::{env, fs};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use swipe_types::types::BigramModel;
+use swipe_types::types::{BigramModel, WordInfo};
 use bincode;
 use bincode::config;
 use codes_iso_639::part_1::LanguageCode;
@@ -16,6 +16,7 @@ fn main() {
     if !corpus_bin_dir.exists() {
         fs::create_dir_all(&corpus_bin_dir).unwrap()
     }
+    println!("cargo:rustc-env=DICT_PATH={}", corpus_bin_dir.display());
 
     println!("cargo:rerun-if-changed=corpuses/plaintext");
 
@@ -116,15 +117,15 @@ fn create_bigram_model(corpus_reader: BufReader<File>, valid_words: HashSet<Stri
     }
 
     let max_word_count_float = max_word_count as f64;
-    for map in &word_count {
-        let float_count = *map.1 as f64;
+    for (string, word_count) in &word_count {
+        let float_count = *word_count as f64;
         let log_freq = (float_count.ln() - 1.0) / max_word_count_float.ln();
-        freq.insert(map.0.clone(), log_freq.max(0.0));
+        freq.insert(string.clone(), WordInfo {count: *word_count, log_freq: log_freq.max(0.0)});
     }
 
     BigramModel {
         pair_counts,
-        freq,
+        word_info: freq,
         words: valid_words.iter().cloned().collect(),
     }
 }

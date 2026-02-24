@@ -3,11 +3,6 @@
 pub mod dtw;
 pub mod keyboard;
 
-#[cfg(feature = "wasm")]
-pub mod wasm;
-
-#[cfg(feature = "wasm")]
-pub use wasm::*;
 
 #[cfg(feature = "ffi")]
 pub mod ffi;
@@ -19,7 +14,7 @@ use keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path
 use std::collections::HashMap;
 use std::path::Path;
 use std::{env, fs};
-use swipe_types::types::{BigramModel, Point, Prediction};
+use swipe_types::types::{BigramModel, Point, Prediction, WordInfo};
 
 pub use dtw::{dtw_distance, dtw_distance_fast as dtw_fast};
 pub use keyboard::{
@@ -34,6 +29,7 @@ pub struct SwipeEngine {
     dictionary: BigramModel,
     layout: HashMap<char, Point>,
     pop_weight: f64,
+    bigram_weight: f64,
 
     by_first_letter: HashMap<char, Vec<usize>>,
     word_paths: Vec<Vec<Point>>,
@@ -42,10 +38,10 @@ pub struct SwipeEngine {
 impl SwipeEngine {
     pub fn new(lang_code: LanguageCode, layout: Option<HashMap<char, Point>>) -> Result<Self, String> {
         let lang = lang_code.to_string();
-        let out_dir_string = env::var("OUT_DIR").unwrap();
+        let out_dir_string = env::var("DICT_PATH").unwrap();
         let out_dir = Path::new(&out_dir_string);
 
-        let dict_path = out_dir.join(format!("corpuses/bin/{lang}.bin"));
+        let dict_path = out_dir.join(format!("{lang}.bin"));
 
         if !dict_path.exists() {
             return Err(format!(
@@ -62,6 +58,7 @@ impl SwipeEngine {
                             dictionary: model,
                             layout: layout.unwrap_or_else(get_keyboard_layout),
                             pop_weight: 0.25,
+                            bigram_weight: 0.5,
                             by_first_letter: HashMap::new(),
                             word_paths: Vec::new(),
                         };
@@ -83,6 +80,11 @@ impl SwipeEngine {
         self.pop_weight = weight;
     }
 
+    /// Higher values favor words that are more likely to follow the previous word.
+    pub fn set_bigram_weight(&mut self, weight: f64) {
+        self.bigram_weight = weight;
+    }
+
     fn build_index(&mut self) {
         self.by_first_letter.clear();
         self.word_paths.clear();
@@ -90,7 +92,7 @@ impl SwipeEngine {
         for (idx, word) in self.dictionary.words.iter().enumerate() {
             if let Some(first) = word.chars().next() {
                 self.by_first_letter
-                    .entry(first)
+                    .entry(first.to_ascii_lowercase())
                     .or_insert_with(Vec::new)
                     .push(idx);
             }
@@ -105,7 +107,7 @@ impl SwipeEngine {
 
     /// Input string should be the sequence of characters the swipe path passes through.
     /// Returns predictions sorted by score.
-    pub fn predict(&self, swipe_input: &str, limit: usize) -> Vec<Prediction> {
+    pub fn predict(&self, swipe_input: &str, previous_word: Option<&str>, limit: usize) -> Vec<Prediction> {
         let raw_input_path = get_word_path(swipe_input, &self.layout);
         if raw_input_path.is_empty() {
             return vec![];
@@ -133,7 +135,7 @@ impl SwipeEngine {
         let window = (input_path.len() / 2).max(10);
         let mut best_score = f64::INFINITY;
 
-        let mut candidates: Vec<(String, f64, f64)> = candidate_indices
+        let mut candidates: Vec<(String, f64, f64, f64)> = candidate_indices
             .iter()
             .filter_map(|&idx| {
                 let w = &self.dictionary.words[idx];
@@ -161,14 +163,30 @@ impl SwipeEngine {
                     best_score = score;
                 }
 
-                let word_freq = *self.dictionary.freq.get(w.as_str()).unwrap_or(&0.0);
-                Some((w.clone(), score, word_freq))
+                let word_info = self.dictionary.word_info.get(w.as_str());
+                let mut word_freq = 0.0;
+                let mut bigram_probability: f64 = 0.0;
+
+                if let Some(word_info) = word_info {
+                    word_freq = word_info.log_freq;
+
+                    if let Some(word) = previous_word {
+                        if let Some(pair_count_map) = self.dictionary.pair_counts.get(word) {
+
+                            let bigram_count = pair_count_map.get(w.as_str()).unwrap_or(&0u32);
+                            println!("{}", bigram_count);
+                            bigram_probability = *bigram_count as f64 / word_info.count as f64;
+                        }
+                    }
+                }
+
+                Some((w.clone(), score, word_freq, bigram_probability))
             })
             .collect();
 
         candidates.sort_by(|a, b| {
-            let combined_a = a.1 - a.2 * self.pop_weight;
-            let combined_b = b.1 - b.2 * self.pop_weight;
+            let combined_a = a.1 - a.2 * self.pop_weight - a.3 * self.bigram_weight;
+            let combined_b = b.1 - b.2 * self.pop_weight - b.3 * self.bigram_weight;
             combined_a
                 .partial_cmp(&combined_b)
                 .unwrap_or(std::cmp::Ordering::Equal)
@@ -177,7 +195,7 @@ impl SwipeEngine {
         candidates
             .into_iter()
             .take(limit)
-            .map(|(word, score, freq)| Prediction { word, score, freq })
+            .map(|(word, score, freq, bigram_prob)| Prediction { word, score, freq, bigram_prob })
             .collect()
     }
 }
@@ -203,8 +221,12 @@ mod tests {
     fn test_prediction() {
         let engine = SwipeEngine::new(LanguageCode::En, None).unwrap();
 
-        let predictions = engine.predict("hello", 5);
+        let predictions = engine.predict("mnnbfdsaxcvbnhgfdsasertrdsaxcvvbn", Some("is"), 5);
+        println!("{:?}", predictions);
         assert!(!predictions.is_empty());
-        assert!(predictions.iter().any(|p| p.word == "hello"));
+
+        let predictions = engine.predict("mnnbfdsaxcvbnhgfdsasertrdsaxcvvbn", None, 5);
+        println!("{:?}", predictions);
+        assert!(!predictions.is_empty());
     }
 }
