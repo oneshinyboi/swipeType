@@ -1,5 +1,5 @@
 use crate::keyboard::euclidean_dist;
-use crate::types::Point;
+use swipe_types::types::Point;
 
 pub fn dtw_distance_fast(s: &[Point], t: &[Point], window: usize, cutoff: f64) -> f64 {
     let n = s.len();

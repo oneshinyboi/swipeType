@@ -2,17 +2,17 @@
 
 use crate::dtw::dtw_distance_fast;
 use crate::keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path};
-use crate::types::{Dictionary, Point, Prediction};
+use swipe_types::types::{BigramModel, Point, Prediction};
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 
 thread_local! {
-    static DICTIONARY: RefCell<Option<Dictionary>> = const { RefCell::new(None) };
+    static DICTIONARY: RefCell<Option<BigramModel >> = const { RefCell::new(None) };
 }
 
 #[wasm_bindgen]
 pub fn init_dictionary(freq_text: &str) {
-    let mut dict = Dictionary::new();
+    let mut dict = BigramModel::new();
     dict.load_from_text(freq_text);
     DICTIONARY.with(|d| {
         *d.borrow_mut() = Some(dict);

@@ -1,4 +1,4 @@
-use crate::types::Point;
+use swipe_types::types::Point;
 use std::collections::HashMap;
 
 pub fn get_keyboard_layout() -> HashMap<char, Point> {

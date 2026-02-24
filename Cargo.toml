@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/swipe-engine",
-    "apps/web",
+    "apps/web", "crates/swipe-types",
 ]
 
 [workspace.package]

@@ -2,7 +2,6 @@
 
 pub mod dtw;
 pub mod keyboard;
-pub mod types;
 
 #[cfg(feature = "wasm")]
 pub mod wasm;
@@ -16,19 +15,19 @@ pub mod ffi;
 use dtw::dtw_distance_fast;
 use keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path};
 use std::collections::HashMap;
-use types::{Dictionary, Point, Prediction};
+use swipe_types::types::{BigramModel, Point, Prediction};
 
 pub use dtw::{dtw_distance, dtw_distance_fast as dtw_fast};
 pub use keyboard::{
     euclidean_dist as euclidean_distance, get_keyboard_layout as keyboard_layout,
     get_word_path as word_path, simplify_path as path_simplify,
 };
-pub use types::Point as PointType;
+pub use swipe_types::types::Point as PointType;
 
 /// Uses a Dynamic Time Warping (DTW) algorithm to compare swipe paths
 /// against a dictionary of words.
 pub struct SwipeEngine {
-    dictionary: Dictionary,
+    dictionary: BigramModel,
     layout: HashMap<char, Point>,
     pop_weight: f64,
 
@@ -40,7 +39,7 @@ impl SwipeEngine {
     /// Initializes with default QWERTY layout.
     pub fn new() -> Self {
         Self {
-            dictionary: Dictionary::new(),
+            dictionary: BigramModel::new(),
             layout: get_keyboard_layout(),
             pop_weight: 0.25,
             by_first_letter: HashMap::new(),
