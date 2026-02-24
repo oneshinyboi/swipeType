@@ -14,7 +14,7 @@ use keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path
 use std::collections::HashMap;
 use std::path::Path;
 use std::{env, fs};
-use swipe_types::types::{BigramModel, Point, Prediction, WordInfo};
+use swipe_types::types::{Dictionary, Point, Prediction, WordInfo};
 
 pub use dtw::{dtw_distance, dtw_distance_fast as dtw_fast};
 pub use keyboard::{
@@ -26,7 +26,7 @@ pub use swipe_types::types::Point as PointType;
 /// Uses a Dynamic Time Warping (DTW) algorithm to compare swipe paths
 /// against a dictionary of words.
 pub struct SwipeEngine {
-    dictionary: BigramModel,
+    dictionary: Dictionary,
     layout: HashMap<char, Point>,
     pop_weight: f64,
     bigram_weight: f64,
@@ -107,6 +107,7 @@ impl SwipeEngine {
 
     /// Input string should be the sequence of characters the swipe path passes through.
     /// Returns predictions sorted by score.
+    /// previous_word will be ignored if lib was compiled without use-pair-counts feature
     pub fn predict(&self, swipe_input: &str, previous_word: Option<&str>, limit: usize) -> Vec<Prediction> {
         let raw_input_path = get_word_path(swipe_input, &self.layout);
         if raw_input_path.is_empty() {
@@ -140,7 +141,7 @@ impl SwipeEngine {
             .filter_map(|&idx| {
                 let w = &self.dictionary.words[idx];
 
-                let word_last_char = w.chars().last().unwrap();
+                let word_last_char = w.chars().last().unwrap().to_lowercase().next().unwrap();
                 let mut end_penalty = 0.0;
                 if word_last_char != last_char {
                     if let Some(word_last_pt) = self.layout.get(&word_last_char) {
@@ -163,19 +164,19 @@ impl SwipeEngine {
                     best_score = score;
                 }
 
-                let word_info = self.dictionary.word_info.get(w.as_str());
+                let word_info = self.dictionary.word_info.get(&w.as_str().to_lowercase());
                 let mut word_freq = 0.0;
                 let mut bigram_probability: f64 = 0.0;
 
                 if let Some(word_info) = word_info {
                     word_freq = word_info.log_freq;
-
-                    if let Some(word) = previous_word {
-                        if let Some(pair_count_map) = self.dictionary.pair_counts.get(word) {
-
-                            let bigram_count = pair_count_map.get(w.as_str()).unwrap_or(&0u32);
-                            println!("{}", bigram_count);
-                            bigram_probability = *bigram_count as f64 / word_info.count as f64;
+                    if let Some(mut previous_word) = previous_word {
+                        let previous_word_lowercase = previous_word.to_lowercase();
+                        if let Some(pair_counts) = &self.dictionary.pair_counts {
+                            if let Some(pair_count_map) = pair_counts.get(&previous_word_lowercase) {
+                                let bigram_count = pair_count_map.get(&w.as_str().to_lowercase()).unwrap_or(&0u32);
+                                bigram_probability = (*bigram_count as f64) / (word_info.count as f64);
+                            }
                         }
                     }
                 }
@@ -187,6 +188,7 @@ impl SwipeEngine {
         candidates.sort_by(|a, b| {
             let combined_a = a.1 - a.2 * self.pop_weight - a.3 * self.bigram_weight;
             let combined_b = b.1 - b.2 * self.pop_weight - b.3 * self.bigram_weight;
+            //println!("{}, {}", a.3, b.3);
             combined_a
                 .partial_cmp(&combined_b)
                 .unwrap_or(std::cmp::Ordering::Equal)
@@ -195,7 +197,13 @@ impl SwipeEngine {
         candidates
             .into_iter()
             .take(limit)
-            .map(|(word, score, freq, bigram_prob)| Prediction { word, score, freq, bigram_prob })
+            .map(|(word, score, freq, bigram_prob)| {
+                let mut return_bigram_prob = None;
+                if bigram_prob != 0.0 {
+                    return_bigram_prob = Some(bigram_prob);
+                }
+                Prediction { word, score, freq, bigram_prob: return_bigram_prob}
+            })
             .collect()
     }
 }
@@ -221,11 +229,11 @@ mod tests {
     fn test_prediction() {
         let engine = SwipeEngine::new(LanguageCode::En, None).unwrap();
 
-        let predictions = engine.predict("mnnbfdsaxcvbnhgfdsasertrdsaxcvvbn", Some("is"), 5);
+        let predictions = engine.predict("mhgfcxsazxcvbnhytfdsasdftgfdsasdfgbnjmn", Some("to"), 5);
         println!("{:?}", predictions);
         assert!(!predictions.is_empty());
 
-        let predictions = engine.predict("mnnbfdsaxcvbnhgfdsasertrdsaxcvvbn", None, 5);
+        let predictions = engine.predict("mhgfcxsazxcvbnhytfdsasdftgfdsasdfgbnjmn", None, 5);
         println!("{:?}", predictions);
         assert!(!predictions.is_empty());
     }

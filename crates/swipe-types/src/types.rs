@@ -13,16 +13,15 @@ pub struct Prediction {
     pub word: String,
     pub score: f64,
     pub freq: f64,
-    pub bigram_prob: f64,
+    pub bigram_prob: Option<f64>,
 }
 
 
 #[derive(Encode, Decode)]
-pub struct BigramModel {
-    pub pair_counts: HashMap<String, HashMap<String, u32>>,
-
-    pub words: Vec<String>,
-    pub word_info: HashMap<String, WordInfo>,
+pub struct Dictionary {
+    pub pair_counts: Option<HashMap<String, HashMap<String, u32>>>, //all lowercase
+    pub words: Vec<String>, // has uppercase proper representations
+    pub word_info: HashMap<String, WordInfo>, // all lowercase
 }
 
 #[derive(Encode, Decode)]
@@ -40,17 +39,17 @@ impl Default for WordInfo {
 }
 
 
-impl BigramModel {
+impl Dictionary {
     pub fn new() -> Self {
         Self {
-            pair_counts: HashMap::new(),
+            pair_counts: None,
             words: Vec::new(),
             word_info: HashMap::new(),
         }
     }
 }
 
-impl Default for BigramModel {
+impl Default for Dictionary {
     fn default() -> Self {
         Self::new()
     }

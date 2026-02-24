@@ -18,6 +18,7 @@ default = []
 wasm = ["wasm-bindgen"]
 ffi = ["once_cell"]
 force-corpus = []
+use-pair-counts = ["force-corpus"]
 
 [dependencies]
 swipe-types = {path = "../swipe-types"}
