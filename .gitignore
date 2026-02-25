@@ -16,3 +16,4 @@ apps/web/pkg/
 
 # Other
 .gemini/tmp/
+*/lang-data/
