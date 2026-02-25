@@ -9,8 +9,8 @@ use codes_iso_639::part_1::LanguageCode;
 use dtw::dtw_distance_fast;
 use keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path};
 use std::collections::HashMap;
-use std::path::Path;
 use std::{env, fs};
+use std::path::Path;
 use swipe_types::types::{Dictionary, Point, Prediction};
 
 pub use dtw::{dtw_distance, dtw_distance_fast as dtw_fast};
@@ -27,48 +27,36 @@ pub struct SwipeEngine {
     layout: HashMap<char, Point>,
     pop_weight: f64,
     bigram_weight: f64,
-
     by_first_letter: HashMap<char, Vec<usize>>,
     word_paths: Vec<Vec<Point>>,
 }
 
 impl SwipeEngine {
     pub fn new(lang_code: LanguageCode, layout: Option<HashMap<char, Point>>) -> Result<Self, String> {
+
         let lang = lang_code.to_string();
-        let out_dir_string = env::var("DICT_PATH").unwrap();
-        let out_dir = Path::new(&out_dir_string);
-
-        let dict_path = out_dir.join(format!("{lang}.bin"));
-
-        if !dict_path.exists() {
-            return Err(format!(
-                "Language {lang} is unsupported or dictionary file not found at {}",
-                dict_path.display()
-            ));
-        }
-
-        match fs::read(dict_path) {
-            Ok(bytes) => {
-                match bincode::decode_from_slice(&bytes, bincode::config::standard()) {
-                    Ok((model, _len)) => {
-                        let mut engine = Self {
-                            dictionary: model,
-                            layout: layout.unwrap_or_else(get_keyboard_layout),
-                            pop_weight: 0.25,
-                            bigram_weight: 0.5,
-                            by_first_letter: HashMap::new(),
-                            word_paths: Vec::new(),
-                        };
-                        engine.build_index();
-                        Ok(engine)
-                    }
-                    Err(e) => Err(format!("Failed to decode dictionary for {}: {}", lang, e)),
-                }
+        let bytes = match lang_code {
+            LanguageCode::En => fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/en.bin")).unwrap(),
+            _ => {
+                return Err("unsupported language".parse().unwrap());
             }
-            Err(e) => Err(format!(
-                "Failed to read dictionary file for {}: {}",
-                lang, e
-            )),
+        };
+
+        // Step 4: The decoding logic is now centralized here, after loading the dictionary bytes.
+        match bincode::decode_from_slice(&bytes, bincode::config::standard()) {
+            Ok((model, _len)) => {
+                let mut engine = Self {
+                    dictionary: model,
+                    layout: layout.unwrap_or_else(get_keyboard_layout),
+                    pop_weight: 0.25,
+                    bigram_weight: 0.5,
+                    by_first_letter: HashMap::new(),
+                    word_paths: Vec::new(),
+                };
+                engine.build_index();
+                Ok(engine)
+            }
+            Err(e) => Err(format!("Failed to decode dictionary for {}: {}", lang, e)),
         }
     }
 

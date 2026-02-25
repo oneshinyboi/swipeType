@@ -1,30 +1,28 @@
 [package]
 name = "super-swipe-engine"
-version = { workspace = true }
+version = "0.1.9"
 edition = { workspace = true }
 authors = { workspace = true }
 license = { workspace = true }
 description = "A fast swipe typing prediction engine using Dynamic Time Warping (DTW)"
 repository = "https://github.com/oneshinyboi/swipeType"
 homepage = "https://github.com/oneshinyboi/swipeType"
-readme = "README.md"
+readme = "../../README.md"
 keywords = ["swipe", "typing", "prediction", "dtw", "keyboard"]
 categories = ["algorithms", "text-processing"]
-exclude = ["corpuses/*"]
+exclude = ["lang-data/*"]
 
 [lib]
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [features]
-default = []
+default = ["ignore-word-frequency-files"]
 force-corpus = []
 use-pair-counts = ["force-corpus"]
+ignore-word-frequency-files = []
 
 [dependencies]
 swipe-types = "0.1.5"
-serde_json = { workspace = true }
-wasm-bindgen = { workspace = true, optional = true }
-once_cell = { version = "1.19", optional = true }
 bincode = "2.0.1"
 codes-iso-639 = "0.1.5"
 

@@ -10,36 +10,38 @@ use codes_iso_639::part_1::LanguageCode;
 
 fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let out_dir = env::var("OUT_DIR").unwrap();
+    let lang_data_bin_dir = Path::new(&manifest_dir).join("assets");
 
-    let corpus_bin_dir = Path::new(&out_dir);
-    if !corpus_bin_dir.exists() {
-        fs::create_dir_all(&corpus_bin_dir).unwrap()
+    if !lang_data_bin_dir.exists() {
+        fs::create_dir_all(&lang_data_bin_dir).unwrap()
     }
-    println!("cargo:rustc-env=DICT_PATH={}", corpus_bin_dir.display());
+    let
+        lang_data_text_dir = match env::var("LANGDATA_DIR") {
+        Ok(val) => PathBuf::from(val),
+        Err(_) => Path::new(&manifest_dir).join("lang-data/plaintext"),
+    };
+    println!("cargo:rerun-if-changed={}", lang_data_text_dir.display());
 
-    println!("cargo:rerun-if-changed=corpuses/plaintext");
-
-    let corpus_text_dir = Path::new(&manifest_dir).join("corpuses/plaintext");
-    if !corpus_text_dir.exists() {
-        fs::create_dir_all(&corpus_text_dir).unwrap()
+    if !lang_data_text_dir.exists() {
+        println!("cargo:warning=Please create the dir: {}", lang_data_text_dir.display());
+        return
     }
 
-    let language_dirs = fs::read_dir(corpus_text_dir).unwrap();
+    let language_dirs = fs::read_dir(lang_data_text_dir).unwrap();
 
     for dir in language_dirs {
-        let mut valid_words: HashSet<String> = HashSet::new();
-        let mut valid_words_lowercase: HashSet<String> = HashSet::new();
+
         let dir = dir.unwrap();
         let dir_path = &dir.path();
         if let Ok(_lang_code) = dir_path.file_name().unwrap().to_str().unwrap().parse::<LanguageCode>() {
 
             let full_dest_file_name = format!("{}.bin", dir.file_name().to_str().unwrap());
-            let dest_path = corpus_bin_dir.join(&full_dest_file_name);
+            let dest_path = lang_data_bin_dir.join(&full_dest_file_name);
 
             if env::var_os("CARGO_FORCE_CORPUS").is_some() || !dest_path.exists() {
                 let mut word_list_path: Option<PathBuf> = None;
                 let mut corpus_path: Option<PathBuf> = None;
+                let mut word_freq_path: Option<PathBuf> = None;
 
                 for potential_file in fs::read_dir(&dir_path).unwrap() {
                     let file_path = potential_file.unwrap().path();
@@ -50,18 +52,53 @@ fn main() {
                         word_list_path = Some(file_path);
                     } else if file_name.contains("corpus") {
                         corpus_path = Some(file_path);
+                    } else if file_name.contains("word_freq") {
+                        word_freq_path = Some(file_path)
                     }
                 }
+                if !env::var_os("CARGO_IGNORE_WORD_FREQUENCY_FILES").is_some() {
+                    if let Some(word_freq_path) = word_freq_path {
+                        let mut valid_words: HashSet<String> = HashSet::new();
+                        let mut word_counts: HashMap<String, u32>  = HashMap::new();
+                        let mut freq = HashMap::new();
+                        let mut max_count: u32 = 0;
 
-                if let (Some(word_list_path), Some(corpus_path)) = (word_list_path, corpus_path) {
-                    let file_name = word_list_path.file_stem().unwrap().to_str().unwrap();
-                    if file_name.contains("word_list") {
-                        let word_list = fs::read_to_string(word_list_path).unwrap();
-                        for line in word_list.lines() {
-                            let word = String::from(line.trim());
-                            valid_words.insert(word.clone());
-                            valid_words_lowercase.insert(word.to_lowercase());
+                        let word_frequencies = fs::read_to_string(word_freq_path).unwrap();
+
+                        for line in word_frequencies.lines() {
+                            let parts: Vec<&str> = line.split_whitespace().collect();
+
+                            let raw_count: u32 = parts[1].parse().unwrap_or(u32::MAX);
+                            word_counts.insert(String::from(parts[0]), raw_count);
+                            max_count = max_count.max(raw_count);
+                            valid_words.insert(String::from(parts[0]));
                         }
+                        for word in word_counts {
+                            let log_freq = (word.1 as f64).ln() - 1.0 / (max_count as f64).ln();
+                            freq.insert(word.0, WordInfo {log_freq, count: word.1});
+                        }
+                        let model = Dictionary {
+                            pair_counts: None,
+                            words: valid_words.iter().cloned().collect(),
+                            word_info: freq
+                        };
+                        let serialized_model = bincode::encode_to_vec(&model, config::standard()).unwrap();
+                        fs::write(&dest_path, serialized_model).expect(&format!("Failed to write {full_dest_file_name}"));
+                    }
+
+                }
+
+
+
+                else if let (Some(word_list_path), Some(corpus_path)) = (word_list_path, corpus_path) {
+                    let mut valid_words: HashSet<String> = HashSet::new();
+                    let mut valid_words_lowercase: HashSet<String> = HashSet::new();
+
+                    let word_list = fs::read_to_string(word_list_path).unwrap();
+                    for line in word_list.lines() {
+                        let word = String::from(line.trim());
+                        valid_words.insert(word.clone());
+                        valid_words_lowercase.insert(word.to_lowercase());
                     }
                     let file_name = corpus_path.file_stem().unwrap().to_str().unwrap();
                     if file_name.contains("corpus") {
@@ -69,10 +106,9 @@ fn main() {
                         let corpus_file = File::open(corpus_path).unwrap();
                         let corpus_reader = BufReader::new(corpus_file);
 
-                        let model = create_dictionary(corpus_reader, valid_words, valid_words_lowercase);
+                        let model = create_dictionary_from_corpus(corpus_reader, valid_words, valid_words_lowercase);
                         let serialized_model = bincode::encode_to_vec(&model, config::standard()).unwrap();
                         fs::write(&dest_path, serialized_model).expect(&format!("Failed to write {full_dest_file_name}"));
-                        println!("cargo:warning=Processing corpus for {full_dest_file_name} complete");
                     }
                 }
             }
@@ -81,7 +117,7 @@ fn main() {
 }
 
 
-fn create_dictionary(corpus_reader: BufReader<File>, valid_words: HashSet<String>, valid_words_lowercase: HashSet<String>) -> Dictionary
+fn create_dictionary_from_corpus(corpus_reader: BufReader<File>, valid_words: HashSet<String>, valid_words_lowercase: HashSet<String>) -> Dictionary
 {
     let mut pair_counts: HashMap<String, HashMap<String, u32>> = HashMap::new();
     let mut word_count: HashMap<String, u32> = HashMap::new();

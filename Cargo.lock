@@ -695,14 +695,11 @@ dependencies = [
 
 [[package]]
 name = "super-swipe-engine"
-version = "0.1.6"
+version = "0.1.9"
 dependencies = [
  "bincode",
  "codes-iso-639",
- "once_cell",
- "serde_json",
  "swipe-types 0.1.5",
- "wasm-bindgen",
 ]
 
 [[package]]
