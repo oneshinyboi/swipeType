@@ -35,8 +35,8 @@ impl SwipeEngine {
     pub fn new(lang_code: LanguageCode, layout: Option<HashMap<char, Point>>) -> Result<Self, String> {
 
         let lang = lang_code.to_string();
-        let bytes = match lang_code {
-            LanguageCode::En => fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/en.bin")).unwrap(),
+        let bytes: &[u8] = match lang_code {
+            LanguageCode::En => include_bytes!("../assets/en.bin"),
             _ => {
                 return Err("unsupported language".parse().unwrap());
             }

@@ -16,7 +16,7 @@ exclude = ["lang-data/*"]
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [features]
-default = ["use-pair-counts"]
+default = ["use-word-frequency-files"]
 use-corpus = []
 use-pair-counts = ["use-corpus"]
 use-word-frequency-files = []

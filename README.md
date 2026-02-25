@@ -37,7 +37,8 @@ use super_swipe_engine::SwipeEngine;
 
 let engine = SwipeEngine::new(LanguageCode::En, None).unwrap();
 
-let predictions = engine.predict("hello", None, 5);
+// hgrertyhjklo is a path you might swipe over on a qwerty keyboard to type "hello"
+let predictions = engine.predict("hgrertyhjkllo", None, 5);
 for prediction in predictions {
     println!("{}: score={}", prediction.word, prediction.score);
 }
