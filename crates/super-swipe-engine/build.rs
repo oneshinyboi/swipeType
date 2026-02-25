@@ -8,6 +8,7 @@ use bincode;
 use bincode::config;
 use codes_iso_639::part_1::LanguageCode;
 
+
 fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let lang_data_bin_dir = Path::new(&manifest_dir).join("assets");
@@ -38,7 +39,7 @@ fn main() {
             let full_dest_file_name = format!("{}.bin", dir.file_name().to_str().unwrap());
             let dest_path = lang_data_bin_dir.join(&full_dest_file_name);
 
-            if env::var_os("CARGO_FORCE_CORPUS").is_some() || !dest_path.exists() {
+            if !dest_path.exists() {
                 let mut word_list_path: Option<PathBuf> = None;
                 let mut corpus_path: Option<PathBuf> = None;
                 let mut word_freq_path: Option<PathBuf> = None;
@@ -56,41 +57,39 @@ fn main() {
                         word_freq_path = Some(file_path)
                     }
                 }
-                if !env::var_os("CARGO_IGNORE_WORD_FREQUENCY_FILES").is_some() {
-                    if let Some(word_freq_path) = word_freq_path {
-                        let mut valid_words: HashSet<String> = HashSet::new();
-                        let mut word_counts: HashMap<String, u32>  = HashMap::new();
-                        let mut freq = HashMap::new();
-                        let mut max_count: u32 = 0;
+                #[cfg(feature = "use-word-frequency-files")]
+                if let Some(word_freq_path) = word_freq_path {
+                    let mut valid_words: HashSet<String> = HashSet::new();
+                    let mut word_counts: HashMap<String, u32>  = HashMap::new();
+                    let mut freq = HashMap::new();
+                    let mut max_count: u32 = 0;
 
-                        let word_frequencies = fs::read_to_string(word_freq_path).unwrap();
+                    let word_frequencies = fs::read_to_string(word_freq_path).unwrap();
 
-                        for line in word_frequencies.lines() {
-                            let parts: Vec<&str> = line.split_whitespace().collect();
+                    for line in word_frequencies.lines() {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
 
-                            let raw_count: u32 = parts[1].parse().unwrap_or(u32::MAX);
-                            word_counts.insert(String::from(parts[0]), raw_count);
-                            max_count = max_count.max(raw_count);
-                            valid_words.insert(String::from(parts[0]));
-                        }
-                        for word in word_counts {
-                            let log_freq = (word.1 as f64).ln() - 1.0 / (max_count as f64).ln();
-                            freq.insert(word.0, WordInfo {log_freq, count: word.1});
-                        }
-                        let model = Dictionary {
-                            pair_counts: None,
-                            words: valid_words.iter().cloned().collect(),
-                            word_info: freq
-                        };
-                        let serialized_model = bincode::encode_to_vec(&model, config::standard()).unwrap();
-                        fs::write(&dest_path, serialized_model).expect(&format!("Failed to write {full_dest_file_name}"));
+                        let raw_count: u32 = parts[1].parse().unwrap_or(u32::MAX);
+                        word_counts.insert(String::from(parts[0]), raw_count);
+                        max_count = max_count.max(raw_count);
+                        valid_words.insert(String::from(parts[0]));
                     }
-
+                    for word in word_counts {
+                        let log_freq = (word.1 as f64).ln() - 1.0 / (max_count as f64).ln();
+                        freq.insert(word.0, WordInfo {log_freq, count: word.1});
+                    }
+                    let model = Dictionary {
+                        pair_counts: None,
+                        words: valid_words.iter().cloned().collect(),
+                        word_info: freq
+                    };
+                    let serialized_model = bincode::encode_to_vec(&model, config::standard()).unwrap();
+                    fs::write(&dest_path, serialized_model).expect(&format!("Failed to write {full_dest_file_name}"));
                 }
 
 
-
-                else if let (Some(word_list_path), Some(corpus_path)) = (word_list_path, corpus_path) {
+                #[cfg(feature = "use-corpus")]
+                if let (Some(word_list_path), Some(corpus_path)) = (word_list_path, corpus_path) {
                     let mut valid_words: HashSet<String> = HashSet::new();
                     let mut valid_words_lowercase: HashSet<String> = HashSet::new();
 
@@ -139,7 +138,8 @@ fn create_dictionary_from_corpus(corpus_reader: BufReader<File>, valid_words: Ha
             }
         }
 
-        if env::var_os("CARGO_USE_PAIR_COUNTS").is_some() {
+        #[cfg(feature = "use-pair-counts")]
+        {
             //count bigrams
             for window in lowercase_words.windows(2) {
                 let word1 = &window[0];

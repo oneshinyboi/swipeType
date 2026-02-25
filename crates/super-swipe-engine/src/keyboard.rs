@@ -11,12 +11,13 @@ pub fn get_keyboard_layout() -> HashMap<char, Point> {
 
     for (chars, x_offset, y) in rows {
         for (i, c) in chars.chars().enumerate() {
-            layout.insert(
-                c,
-                Point {
+            let point = Point {
                     x: i as f64 + x_offset,
                     y,
-                },
+                };
+            layout.insert(
+                c,
+                point,
             );
         }
     }

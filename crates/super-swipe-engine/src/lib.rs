@@ -11,7 +11,7 @@ use keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path
 use std::collections::HashMap;
 use std::{env, fs};
 use std::path::Path;
-use swipe_types::types::{Dictionary, Point, Prediction};
+use swipe_types::types::{Dictionary, Point, Prediction, WordInfo};
 
 pub use dtw::{dtw_distance, dtw_distance_fast as dtw_fast};
 pub use keyboard::{
@@ -42,7 +42,6 @@ impl SwipeEngine {
             }
         };
 
-        // Step 4: The decoding logic is now centralized here, after loading the dictionary bytes.
         match bincode::decode_from_slice(&bytes, bincode::config::standard()) {
             Ok((model, _len)) => {
                 let mut engine = Self {
@@ -130,7 +129,7 @@ impl SwipeEngine {
                 let mut end_penalty = 0.0;
                 if word_last_char != last_char {
                     if let Some(word_last_pt) = self.layout.get(&word_last_char) {
-                        end_penalty = euclidean_dist(&last_char_pt, word_last_pt) * 5.0;
+                        end_penalty = euclidean_dist(&last_char_pt, word_last_pt) * 0.5;
                     } else {
                         end_penalty = 50.0;
                     }
@@ -160,7 +159,9 @@ impl SwipeEngine {
                         if let Some(pair_counts) = &self.dictionary.pair_counts {
                             if let Some(pair_count_map) = pair_counts.get(&previous_word_lowercase) {
                                 let bigram_count = pair_count_map.get(&w.as_str().to_lowercase()).unwrap_or(&0u32);
-                                bigram_probability = (*bigram_count as f64) / (word_info.count as f64);
+                                if let Some(previous_word_count) = self.dictionary.word_info.get(&previous_word_lowercase) {
+                                    bigram_probability = *bigram_count as f64 / previous_word_count.count as f64;
+                                }
                             }
                         }
                     }
@@ -213,13 +214,45 @@ mod tests {
     #[test]
     fn test_prediction() {
         let engine = SwipeEngine::new(LanguageCode::En, None).unwrap();
+        println!("model loaded");
+        let swipe_answers = [
+            ("polkjuytrewqasde", "please"),
+            ("poiuytt", "put"),
+            ("okjn", "on"),
+            ("tghhgtresser", "these"),
+            ("ewsasdrtghbnmmjuytfdsd", "earmuffs"),
+            ("bgfredfcdsasdftyuytfdsase", "because"),
+            ("i", "i"),
+            ("cdsasdfgbnbhgyt", "can't"),
+            ("hgtrewasdfrt", "hear"),
+            ("yujklpoiu", "you")
+        ];
 
-        let predictions = engine.predict("mhgfcxsazxcvbnhytfdsasdftgfdsasdfgbnjmn", Some("to"), 5);
-        println!("{:?}", predictions);
-        assert!(!predictions.is_empty());
+        let mut total_score = 0;
+        let mut previous_word = None;
 
-        let predictions = engine.predict("mhgfcxsazxcvbnhytfdsasdftgfdsasdfgbnjmn", None, 5);
-        println!("{:?}", predictions);
-        assert!(!predictions.is_empty());
+        for (swipe, correct_word) in swipe_answers.iter() {
+            let predictions = engine.predict(swipe, previous_word, 3);
+            println!("top word: {}, correct word: {}", predictions[0].word, correct_word);
+            println!("{:?}\n", predictions);
+
+            if let Some(pos) = predictions.iter().position(|p| p.word == *correct_word) {
+                total_score += 3 - pos;
+            }
+
+            previous_word = Some(correct_word);
+        }
+
+        let max_score = swipe_answers.len() * 3;
+        println!("Prediction score: {}/{}", total_score, max_score);
+
+
+        let threshold = (max_score as f64 * 2.0 / 3.0).round() as usize;
+        assert!(
+            total_score >= threshold,
+            "Prediction score {} is below the threshold of {}",
+            total_score,
+            threshold
+        );
     }
 }
