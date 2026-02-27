@@ -10,7 +10,8 @@ use dtw::dtw_distance_fast;
 use keyboard::{euclidean_dist, get_keyboard_layout, get_word_path, simplify_path};
 use std::collections::HashMap;
 use std::{env, fs};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use bincode::config::Configuration;
 use swipe_types::types::{Dictionary, Point, Prediction, WordInfo};
 
 pub use dtw::{dtw_distance, dtw_distance_fast as dtw_fast};
@@ -19,6 +20,7 @@ pub use keyboard::{
     get_word_path as word_path, simplify_path as path_simplify,
 };
 pub use swipe_types::types::Point as PointType;
+use cached_path::{cached_path};
 
 /// Uses a Dynamic Time Warping (DTW) algorithm to compare swipe paths
 /// against a dictionary of words.
@@ -31,32 +33,47 @@ pub struct SwipeEngine {
     word_paths: Vec<Vec<Point>>,
 }
 
+#[derive(Debug)]
+pub enum EngineLoadError {
+    ModelFileError(String),
+    UnsupportedLanguageError(String)
+}
+
 impl SwipeEngine {
-    pub fn new(lang_code: LanguageCode, layout: Option<HashMap<char, Point>>) -> Result<Self, String> {
+    pub fn cache_lang_model(lang_code: LanguageCode) -> Result<PathBuf, cached_path::Error>{
+        cached_path(
+            format!("https://raw.githubusercontent.com/oneshinyboi/swipeType/v0.1.10/crates/super-swipe-engine/assets/{}.bin", lang_code.to_string()).as_str()
+        )
+    }
+    pub fn new(lang_code: LanguageCode, layout: Option<HashMap<char, Point>>) -> Result<Self, EngineLoadError> {
 
-        let lang = lang_code.to_string();
-        let bytes: &[u8] = match lang_code {
-            LanguageCode::En => include_bytes!("../assets/en.bin"),
-            _ => {
-                return Err("unsupported language".parse().unwrap());
+        match Self::cache_lang_model(lang_code) {
+            Ok(model_path) => {
+               println!("{:?}", model_path);
+                match fs::read(model_path) {
+                    Ok(bytes) =>
+                        match bincode::decode_from_slice::<Dictionary, Configuration>(&bytes, bincode::config::standard()) {
+                        Ok((model, _len)) => {
+                            let mut engine = Self {
+                                dictionary: model,
+                                layout: layout.unwrap_or_else(get_keyboard_layout),
+                                pop_weight: 0.25,
+                                bigram_weight: 0.5,
+                                by_first_letter: HashMap::new(),
+                                word_paths: Vec::new(),
+                            };
+                            engine.build_index();
+                            Ok(engine)
+                        }
+                        Err(e) => Err(EngineLoadError::ModelFileError(format!("Failed to decode dictionary for {}: {}", lang_code.to_string(), e))),
+                    }
+                    Err(read_err) => Err(EngineLoadError::ModelFileError(format!("Error reading model file: {}", read_err)))
+                }
             }
-        };
-
-        match bincode::decode_from_slice(&bytes, bincode::config::standard()) {
-            Ok((model, _len)) => {
-                let mut engine = Self {
-                    dictionary: model,
-                    layout: layout.unwrap_or_else(get_keyboard_layout),
-                    pop_weight: 0.25,
-                    bigram_weight: 0.5,
-                    by_first_letter: HashMap::new(),
-                    word_paths: Vec::new(),
-                };
-                engine.build_index();
-                Ok(engine)
-            }
-            Err(e) => Err(format!("Failed to decode dictionary for {}: {}", lang, e)),
+            Err(e) => Err(EngineLoadError::ModelFileError(format!("Could not access cached model file: {}", e.to_string()).to_string()))
         }
+
+
     }
 
     /// Higher values favor common words more heavily in the scoring function.

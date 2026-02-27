@@ -1,6 +1,6 @@
 [package]
 name = "super-swipe-engine"
-version = "0.1.10"
+version = "0.1.11"
 edition = { workspace = true }
 authors = { workspace = true }
 license = { workspace = true }
@@ -16,7 +16,7 @@ exclude = ["lang-data/*"]
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [features]
-default = ["use-word-frequency-files"]
+default = ["use-pair-counts"]
 use-corpus = []
 use-pair-counts = ["use-corpus"]
 use-word-frequency-files = []
@@ -25,6 +25,7 @@ use-word-frequency-files = []
 swipe-types = "0.1.5"
 bincode = "2.0.1"
 codes-iso-639 = "0.1.5"
+cached-path = "0.10.0"
 
 [build-dependencies]
 swipe-types = "0.1.5"
